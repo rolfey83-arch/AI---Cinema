@@ -1,0 +1,451 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101014">
+<title>AI Cinema — NOCTARI Discovery Test</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #101014;
+  --panel: #1b1b22;
+  --line: #353540;
+  --muted: #aaaab5;
+  --red: #e50914;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--bg);
+  color: white;
+  font: 16px/1.5 system-ui, sans-serif;
+}
+main { max-width: 950px; margin: auto; }
+h1 { color: var(--red); margin-bottom: 4px; }
+h2 { font-size: 19px; }
+p { color: var(--muted); }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+}
+label {
+  display: block;
+  font-weight: 650;
+  margin: 12px 0 5px;
+}
+input {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #50505c;
+  border-radius: 7px;
+  background: #101014;
+  color: white;
+  font: inherit;
+}
+button {
+  padding: 11px 16px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--red);
+  color: white;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+button:disabled { opacity: .5; cursor: wait; }
+#status { margin-top: 14px; color: #ddd; }
+#results { display: grid; gap: 10px; }
+.episode {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 13px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.episode img {
+  width: 110px;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: 5px;
+}
+.episode a { color: white; font-weight: 700; }
+.meta { color: var(--muted); font-size: 13px; margin-top: 5px; }
+.warning {
+  padding: 12px;
+  border: 1px solid #765047;
+  background: #30201e;
+  border-radius: 7px;
+  color: #f2d0c9;
+}
+@media(max-width:520px) {
+  body { padding: 12px; }
+  .episode { grid-template-columns: 90px 1fr; }
+  .episode img { width: 90px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>AI CINEMA</h1>
+  <h2>NOCTARI episode discovery test</h2>
+  <p>
+    Testing whether AI Cinema can find episodes across a creator's
+    uploads and fragmented playlists.
+  </p>
+
+  <section class="panel">
+    <div class="warning">
+      This is an experimental test page. Enter your own API key below.
+      It is used only in this browser session and is not saved.
+      Do not put an API key into this HTML file.
+    </div>
+
+    <label for="apiKey">YouTube Data API v3 key</label>
+    <input id="apiKey" type="password"
+      placeholder="Paste your API key here"
+      autocomplete="off">
+
+    <label for="handle">Creator's YouTube handle</label>
+    <input id="handle" value="@blackeyemedia70">
+
+    <label for="playlists">
+      Additional playlist URLs (optional)
+    </label>
+    <input id="playlists"
+      placeholder="Paste playlist URLs, separated by commas">
+
+    <button id="scanButton" type="button">
+      Find NOCTARI episodes
+    </button>
+
+    <div id="status" aria-live="polite">
+      Ready to scan.
+    </div>
+  </section>
+
+  <section>
+    <h2 id="resultHeading">Discovered episodes</h2>
+    <div id="results">
+      <p>Episodes will appear here after the scan.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const API = "https://www.googleapis.com/youtube/v3";
+  const MAX_UPLOAD_PAGES = 20;
+  const $ = id => document.getElementById(id);
+
+  function setStatus(message) {
+    $("status").textContent = message;
+  }
+
+  function getPlaylistId(value) {
+    try {
+      const url = new URL(value.trim());
+      return url.searchParams.get("list") || "";
+    } catch {
+      return "";
+    }
+  }
+
+  async function apiRequest(endpoint, params, key) {
+    const url = new URL(API + "/" + endpoint);
+
+    Object.entries({ ...params, key }).forEach(([name, value]) => {
+      if (value !== undefined && value !== "") {
+        url.searchParams.set(name, value);
+      }
+    });
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const data = await response.json();
+        detail = data.error?.message || "";
+      } catch {}
+
+      throw new Error(
+        "YouTube API returned HTTP " + response.status +
+        (detail ? ": " + detail : "")
+      );
+    }
+
+    return response.json();
+  }
+
+  async function findChannel(handle, key) {
+    const cleanHandle = handle.trim().replace(/^@/, "");
+
+    const data = await apiRequest("channels", {
+      part: "snippet,contentDetails",
+      forHandle: cleanHandle
+    }, key);
+
+    if (!data.items?.length) {
+      throw new Error(
+        "YouTube could not find that channel handle. " +
+        "Check the spelling or use its channel ID instead."
+      );
+    }
+
+    return data.items[0];
+  }
+
+  async function scanPlaylist(playlistId, key, progress) {
+    const videos = [];
+    let pageToken = "";
+
+    do {
+      const data = await apiRequest("playlistItems", {
+        part: "snippet,contentDetails",
+        playlistId,
+        maxResults: 50,
+        pageToken
+      }, key);
+
+      for (const item of data.items || []) {
+        const videoId =
+          item.contentDetails?.videoId ||
+          item.snippet?.resourceId?.videoId;
+
+        if (!videoId) continue;
+
+        videos.push({
+          id: videoId,
+          title: item.snippet?.title || "Untitled",
+          date: item.contentDetails?.videoPublishedAt ||
+                item.snippet?.publishedAt || ""
+        });
+      }
+
+      pageToken = data.nextPageToken || "";
+      if (progress) progress(videos.length);
+    } while (pageToken);
+
+    return videos;
+  }
+
+  function episodeNumber(title) {
+    const patterns = [
+      /\bNOCTARI\s*(?:[-–:]?\s*)?(?:PART|EPISODE|EP)?\s*([1-9]\d*)\b/i,
+      /\b(?:PART|EPISODE|EP)\s*#?\s*([1-9]\d*)\b/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = title.match(pattern);
+      if (match) return Number(match[1]);
+    }
+
+    if (/NOCTARI/i.test(title) && /\bARRIVAL\b/i.test(title)) {
+      return 1;
+    }
+
+    return null;
+  }
+
+  function renderEpisodes(videos) {
+    const results = $("results");
+    results.replaceChildren();
+
+    if (!videos.length) {
+      const message = document.createElement("p");
+      message.textContent =
+        "No matching NOCTARI videos were found in the scanned uploads or playlists.";
+      results.appendChild(message);
+      return;
+    }
+
+    videos.forEach(video => {
+      const card = document.createElement("article");
+      card.className = "episode";
+
+      const image = document.createElement("img");
+      image.loading = "lazy";
+      image.alt = "";
+      image.src =
+        "https://i.ytimg.com/vi/" + encodeURIComponent(video.id) +
+        "/mqdefault.jpg";
+
+      const details = document.createElement("div");
+
+      const link = document.createElement("a");
+      link.href = "https://www.youtube.com/watch?v=" +
+        encodeURIComponent(video.id);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = video.title;
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      const number = episodeNumber(video.title);
+      const episodeText = number
+        ? "Episode " + number
+        : "Episode number not recognised";
+
+      const dateText = video.date
+        ? " · " + new Date(video.date).toLocaleDateString()
+        : "";
+
+      meta.textContent = episodeText + dateText;
+
+      details.append(link, meta);
+      card.append(image, details);
+      results.appendChild(card);
+    });
+  }
+
+  async function runScan() {
+    const key = $("apiKey").value.trim();
+    const handle = $("handle").value.trim();
+    const button = $("scanButton");
+
+    if (!key) {
+      setStatus("Please enter a YouTube Data API key first.");
+      $("apiKey").focus();
+      return;
+    }
+
+    if (!handle) {
+      setStatus("Please enter the creator's YouTube handle.");
+      return;
+    }
+
+    button.disabled = true;
+    $("results").replaceChildren();
+    setStatus("Finding the creator's channel…");
+
+    try {
+      const channel = await findChannel(handle, key);
+      const uploadsId =
+        channel.contentDetails?.relatedPlaylists?.uploads;
+
+      if (!uploadsId) {
+        throw new Error("Could not find the channel's uploads playlist.");
+      }
+
+      setStatus("Scanning channel uploads…");
+
+      const uploads = [];
+      let pageToken = "";
+
+      for (let page = 0; page < MAX_UPLOAD_PAGES; page++) {
+        const data = await apiRequest("playlistItems", {
+          part: "snippet,contentDetails",
+          playlistId: uploadsId,
+          maxResults: 50,
+          pageToken
+        }, key);
+
+        for (const item of data.items || []) {
+          const id =
+            item.contentDetails?.videoId ||
+            item.snippet?.resourceId?.videoId;
+
+          if (!id) continue;
+
+          uploads.push({
+            id,
+            title: item.snippet?.title || "Untitled",
+            date: item.contentDetails?.videoPublishedAt ||
+                  item.snippet?.publishedAt || ""
+          });
+        }
+
+        setStatus(
+          "Scanned " + uploads.length + " channel uploads…"
+        );
+
+        pageToken = data.nextPageToken || "";
+        if (!pageToken) break;
+      }
+
+      const playlistInput = $("playlists").value.trim();
+      const playlistIds = playlistInput
+        ? playlistInput.split(",")
+            .map(getPlaylistId)
+            .filter(Boolean)
+        : [];
+
+      const allVideos = [...uploads];
+
+      for (const playlistId of playlistIds) {
+        setStatus("Scanning an additional playlist…");
+        const playlistVideos =
+          await scanPlaylist(playlistId, key);
+        allVideos.push(...playlistVideos);
+      }
+
+      // Merge duplicate videos using their YouTube video ID.
+      const unique = new Map();
+
+      for (const video of allVideos) {
+        if (!unique.has(video.id)) {
+          unique.set(video.id, video);
+        }
+      }
+
+      // Keep titles that identify the NOCTARI series.
+      const noctari = [...unique.values()]
+        .filter(video => /NOCTARI/i.test(video.title));
+
+      // Put numbered episodes first, in episode order.
+      noctari.sort((a, b) => {
+        const aNumber = episodeNumber(a.title);
+        const bNumber = episodeNumber(b.title);
+
+        if (aNumber !== null && bNumber !== null) {
+          return aNumber - bNumber;
+        }
+
+        if (aNumber !== null) return -1;
+        if (bNumber !== null) return 1;
+
+        return new Date(a.date || 0) - new Date(b.date || 0);
+      });
+
+      renderEpisodes(noctari);
+
+      $("resultHeading").textContent =
+        "Discovered episodes (" + noctari.length + ")";
+
+      const recognised = noctari.filter(
+        video => episodeNumber(video.title) !== null
+      ).length;
+
+      setStatus(
+        "Scan complete. " + uploads.length +
+        " uploads checked; " + noctari.length +
+        " NOCTARI videos found; " + recognised +
+        " with recognised episode numbers."
+      );
+
+    } catch (error) {
+      console.error(error);
+      setStatus("Scan failed: " + error.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  $("scanButton").addEventListener("click", runScan);
+})();
+</script>
+</body>
+</html>
