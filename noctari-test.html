@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -374,7 +375,7 @@ button.add-series-button {
     <div class="api-content">
       <label for="apiKey">YouTube Data API key</label>
       <input type="password" id="apiKey" autocomplete="off" placeholder="Enter your YouTube API key">
-      <small>Your API key is entered in this browser session and is not saved by this page.</small>
+      <small>Your API key is saved locally in this browser. It is not written into the website code.</small>
     </div>
   </details>
 
@@ -487,6 +488,7 @@ const API = "https://www.googleapis.com/youtube/v3";
 const SHORT_CUTOFF_DATE = new Date("2024-10-15T00:00:00Z");
 const DB_NAME = "AICinemaLibrary";
 const DB_VERSION = 1;
+const API_KEY_STORAGE = "AICinemaYouTubeApiKey";
 
 const $ = id => document.getElementById(id);
 let library = [];
@@ -494,6 +496,7 @@ let db = null;
 let activeChannelId = null;
 let activeChannelTitle = "";
 let youtubeSearchResults = [];
+let apiKeySavedLocally = false;
 
 /* STATUS */
 
@@ -501,20 +504,69 @@ function setStatus(message) {
   $("status").textContent = message;
 }
 
+/* API KEY STORAGE */
+
 function updateApiIndicator() {
   const ready = Boolean($("apiKey").value.trim());
+
   $("apiDot").classList.toggle("ready",ready);
-  $("apiStatusText").textContent = ready ? "Key entered for this session" : "API key required";
+
+  if (!ready) {
+    $("apiStatusText").textContent = "API key required";
+  } else if (apiKeySavedLocally) {
+    $("apiStatusText").textContent = "Key saved locally";
+  } else {
+    $("apiStatusText").textContent = "Key entered for this session";
+  }
+}
+
+function loadSavedApiKey() {
+  try {
+    const savedKey = localStorage.getItem(API_KEY_STORAGE);
+
+    if (savedKey) {
+      $("apiKey").value = savedKey;
+      apiKeySavedLocally = true;
+    } else {
+      apiKeySavedLocally = false;
+    }
+  } catch (error) {
+    console.warn("Could not access locally saved API key:",error);
+    apiKeySavedLocally = false;
+  }
+
+  updateApiIndicator();
+}
+
+function saveApiKeyLocally() {
+  const key = $("apiKey").value.trim();
+
+  try {
+    if (key) {
+      localStorage.setItem(API_KEY_STORAGE,key);
+      apiKeySavedLocally = true;
+    } else {
+      localStorage.removeItem(API_KEY_STORAGE);
+      apiKeySavedLocally = false;
+    }
+  } catch (error) {
+    console.warn("Could not save API key locally:",error);
+    apiKeySavedLocally = false;
+  }
+
+  updateApiIndicator();
 }
 
 function getApiKey() {
   const key = $("apiKey").value.trim();
+
   if (!key) {
     $("api-panel").setAttribute("open","");
     $("apiKey").focus();
     setStatus("Please enter your YouTube API key in API & Integration Settings.");
     return null;
   }
+
   return key;
 }
 
@@ -2282,14 +2334,16 @@ async function runScan() {
 
 async function initialise() {
   try {
-    updateApiIndicator();
+    loadSavedApiKey();
+
     await openDatabase();
     await loadLibrary();
     await loadChannelSettings();
 
     setStatus(
       "Ready. "+library.length+
-      " saved videos loaded. Your library is intact."
+      " saved videos loaded. Your library is intact."+
+      (apiKeySavedLocally ? " API key loaded from this browser." : "")
     );
   } catch(error) {
     console.error(error);
@@ -2308,7 +2362,7 @@ $("youtubeSearchInput").addEventListener("keydown",event=>{
 
 $("seriesFilter").addEventListener("change",renderResults);
 $("searchInput").addEventListener("input",renderResults);
-$("apiKey").addEventListener("input",updateApiIndicator);
+$("apiKey").addEventListener("input",saveApiKeyLocally);
 
 $("handle").addEventListener("change",async()=>{
   await loadChannelSettings();
