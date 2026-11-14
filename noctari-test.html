@@ -15,13 +15,13 @@
 }
 * {box-sizing:border-box}
 body {
-  margin:0; padding:30px 16px; background:var(--bg);
+  margin:0; padding:24px 16px; background:var(--bg);
   color:var(--text); font-family:Arial,sans-serif; line-height:1.5;
 }
 main {max-width:1100px;margin:0 auto}
-header {margin-bottom:28px}
+header {margin-bottom:22px}
 h1 {margin-bottom:8px;font-size:clamp(28px,5vw,40px)}
-h2 {margin-top:30px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+h2 {margin-top:26px;padding-bottom:9px;border-bottom:1px solid var(--border)}
 h3 {margin:0 0 7px}
 .intro,.note,small {color:var(--muted)}
 .panel {
@@ -101,6 +101,41 @@ button.remove-button:hover {background:#713b46;color:white}
 .toolbar-heading {
   margin:0 0 13px;font-size:16px;color:var(--muted);
 }
+
+/* COLLAPSIBLE DISCOVERY */
+
+.discovery-collapsible {
+  padding:16px 18px;
+}
+.discovery-collapsible>summary {
+  cursor:pointer;
+  font-size:17px;
+  font-weight:bold;
+  list-style:none;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+.discovery-collapsible>summary::-webkit-details-marker {
+  display:none;
+}
+.discovery-collapsible>summary::after {
+  content:"+";
+  color:var(--accent);
+  font-size:24px;
+  line-height:1;
+}
+.discovery-collapsible[open]>summary::after {
+  content:"−";
+}
+.discovery-collapsible>summary:hover {
+  color:var(--accent);
+}
+.discovery-collapsible[open]>p {
+  margin-top:12px;
+}
+
 @media(max-width:600px) {
   body {padding:20px 12px}
   .panel {padding:16px}
@@ -145,7 +180,8 @@ button.remove-button:hover {background:#713b46;color:white}
   <h2>Saved series library</h2>
   <div class="library-info" id="libraryInfo">Loading saved library...</div>
 
-  <!-- SEARCH AND FILTERS NOW APPEAR BEFORE THE VIDEO LIST -->
+  <!-- SEARCH AND FILTERS -->
+
   <div class="library-toolbar">
     <p class="toolbar-heading">Find something in your library</p>
     <div class="filters">
@@ -160,13 +196,7 @@ button.remove-button:hover {background:#713b46;color:white}
     </div>
   </div>
 
-  <section class="discovery-panel">
-    <h3>Discovered series</h3>
-    <p>AI Cinema looks for repeated phrases in unclassified video titles. If it finds a likely series, you can add it with one click.</p>
-    <div id="discoveredSeries">
-      <div class="discovery-empty">Scan a channel to discover potential series.</div>
-    </div>
-  </section>
+  <!-- MANAGE SAVED SERIES: NOW ABOVE DISCOVERY -->
 
   <section class="manage-panel">
     <h3>Manage saved series</h3>
@@ -175,6 +205,16 @@ button.remove-button:hover {background:#713b46;color:white}
       <div class="manage-empty">Load a previously scanned channel to manage its series.</div>
     </div>
   </section>
+
+  <!-- DISCOVERY: COLLAPSED UNTIL EXPANDED -->
+
+  <details class="discovery-panel discovery-collapsible">
+    <summary>Discovered series — potential new series</summary>
+    <p>AI Cinema looks for repeated phrases in unclassified video titles. Expand this section when you want to review suggestions.</p>
+    <div id="discoveredSeries">
+      <div class="discovery-empty">Scan a channel to discover potential series.</div>
+    </div>
+  </details>
 
   <p id="librarySummary" class="summary">Your saved library will appear here.</p>
   <h2 id="resultHeading">Saved series library</h2>
