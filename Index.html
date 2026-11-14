@@ -37,7 +37,6 @@
         .ep-title { font-size: 14px; font-weight: bold; color: #fff; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
         .loading-text { color: #666; font-style: italic; }
 
-        /* Modal Popup styles */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
         .modal-content { background: #181818; border: 1px solid #333; padding: 30px; border-radius: 8px; width: 90%; max-width: 450px; }
         .modal-content h3 { margin-bottom: 15px; font-size: 18px; }
@@ -68,9 +67,7 @@
         <div>
             <div class="logo">AI Cinema</div>
             <div class="menu-label">My Channels</div>
-            <div class="nav-container" id="sidebarNav">
-                <!-- Stored channels appear here dynamically -->
-            </div>
+            <div class="nav-container" id="sidebarNav"></div>
         </div>
         <div class="add-btn" onclick="openModal()">➕ Add New Series</div>
     </div>
@@ -87,12 +84,11 @@
         </div>
     </div>
 
-    <!-- Interactive Manager Popup Box -->
     <div class="modal" id="addModal">
         <div class="modal-content">
             <h3>Track New AI Channel</h3>
-            <input type="text" id="inputTitle" placeholder="Series Name (e.g., Mia Don't Touch Me)">
-            <input type="text" id="inputChannelId" placeholder="YouTube Channel ID (e.g., UCqE1zZ9E9E2x...)">
+            <input type="text" id="inputTitle" placeholder="Series Name">
+            <input type="text" id="inputChannelId" placeholder="YouTube Channel ID">
             <input type="text" id="inputDesc" placeholder="Brief Description (Optional)">
             <div class="modal-actions">
                 <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
@@ -102,7 +98,6 @@
     </div>
 
     <script>
-        // Set factory default entries if user storage is totally blank
         const defaultChannels = [
             { id: "quantum", title: "Quantum 13", feed: "UCqE1zZ9E9E2xGjCg64G-LgA", desc: "Produced by Somex Studios. Tech-organic machine survival." },
             { id: "oz", title: "The Wizard of Oz", feed: "UCtHlZzW2T7x_S0c1p3vH3yQ", desc: "Produced by 451º. Gritty dark fantasy adaptation." }
@@ -119,13 +114,23 @@
                 const item = document.createElement('div');
                 item.className = `nav-item ${ch.id === currentActiveId ? 'active' : ''}`;
                 item.setAttribute('onclick', `switchSeries('${ch.id}', this)`);
-                
                 item.innerHTML = `
                     <span>${ch.title}</span>
                     <span class="delete-btn" onclick="deleteChannel('${ch.id}', event)">✕</span>
                 `;
                 container.appendChild(item);
             });
+        }
+
+        function extractVideoId(url) {
+            try {
+                const urlObj = new URL(url);
+                return urlObj.searchParams.get('v');
+            } catch (e) {
+                // Fallback if URL parsing fails completely
+                const match = url.match(/[?&]v=([^&#]+)/);
+                return match ? match[1] : null;
+            }
         }
 
         async function fetchChannelVideos(channelId) {
@@ -143,12 +148,10 @@
                 const data = await response.json();
                 grid.innerHTML = '';
 
-                if (data.status === 'ok' && data.items.length > 0) {
+                if (data.status === 'ok' && data.items && data.items.length > 0) {
                     let firstVideoId = '';
                     data.items.forEach((item, index) => {
-                        const videoUrlParts = item.link.split('v=');
-                        if (videoUrlParts.length < 2) return;
-                        const videoId = videoUrlParts[1].split('&')[0];
+                        const videoId = extractVideoId(item.link);
                         if (!videoId) return;
                         
                         if (index === 0) firstVideoId = videoId;
@@ -157,3 +160,4 @@
                         card.className = `episode-card ${index === 0 ? 'playing' : ''}`;
                         card.onclick = () => playVideo(videoId, card);
                         
+                        card.innerHTML = `
