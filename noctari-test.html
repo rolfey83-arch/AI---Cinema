@@ -188,26 +188,47 @@ button.add-result-button:hover {
 .meta {margin-top:8px;color:var(--muted);font-size:12px}
 .description {margin-top:7px;color:#b9bdd0;font-size:13px}
 .empty {color:var(--muted);padding:20px 0}
+
 .manage-panel,.discovery-panel {
   background:linear-gradient(145deg,#201c34,#171927);
   border-color:#484064;
 }
-.manage-panel>p,.discovery-panel>p {
-  color:var(--muted);font-size:13px;margin-top:5px;
+
+/* COLLAPSIBLE MANAGEMENT AND DISCOVERY PANELS */
+
+.discovery-collapsible {
+  padding:0;
+  overflow:hidden;
 }
-.discovery-collapsible {padding:16px 19px}
 .discovery-collapsible>summary {
-  cursor:pointer;font-size:16px;font-weight:700;
-  list-style:none;display:flex;justify-content:space-between;
-  align-items:center;gap:12px;
+  padding:17px 20px;
+  cursor:pointer;
+  font-size:16px;
+  font-weight:700;
+  list-style:none;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
 }
 .discovery-collapsible>summary::-webkit-details-marker {display:none}
 .discovery-collapsible>summary::after {
-  content:"+";color:var(--accent);font-size:23px;
+  content:"+";
+  color:var(--accent);
+  font-size:23px;
+  font-weight:400;
 }
 .discovery-collapsible[open]>summary::after {content:"−"}
 .discovery-collapsible>summary:hover {color:var(--accent2)}
-.discovery-collapsible[open]>p {margin-top:12px}
+.discovery-collapsible>p {
+  color:var(--muted);
+  font-size:13px;
+  margin:0;
+  padding:0 20px 14px;
+}
+.discovery-collapsible>div {
+  padding:0 20px 15px;
+}
 .discovery-card,.managed-series-card {
   display:flex;justify-content:space-between;align-items:center;
   gap:15px;padding:14px 0;border-top:1px solid var(--border);
@@ -249,7 +270,7 @@ button.add-result-button:hover {
   header {gap:12px;margin-bottom:22px}
   .logo {width:53px;height:53px;border-radius:15px}
   .logo svg {width:35px;height:35px}
-  .panel,.library-toolbar,.manage-panel,.discovery-panel {padding:16px}
+  .panel,.library-toolbar {padding:16px}
   .filters {grid-template-columns:1fr}
   .episode {gap:11px}
   .episode img {width:115px}
@@ -333,22 +354,25 @@ button.add-result-button:hover {
     <small>Search matches multiple words and ignores punctuation and capitalisation.</small>
   </div>
 
-  <section class="manage-panel">
-    <h3>Manage saved series</h3>
+  <!-- COLLAPSIBLE: MANAGE SAVED SERIES -->
+  <details class="manage-panel discovery-collapsible">
+    <summary>Manage saved series</summary>
     <p>Remove a series from this channel. Its videos will return to Unclassified, not be deleted.</p>
     <div id="managedSeries">
       <div class="manage-empty">Load a previously scanned channel to manage its series.</div>
     </div>
-  </section>
+  </details>
 
-  <section class="manage-panel">
-    <h3>Manage channels</h3>
+  <!-- COLLAPSIBLE: MANAGE CHANNELS -->
+  <details class="manage-panel discovery-collapsible">
+    <summary>Manage channels</summary>
     <p>Remove a channel and permanently delete all its saved videos and series information.</p>
     <div id="managedChannels">
       <div class="manage-empty">Loading saved channels...</div>
     </div>
-  </section>
+  </details>
 
+  <!-- COLLAPSIBLE: DISCOVERED SERIES -->
   <details class="discovery-panel discovery-collapsible">
     <summary>✦ &nbsp;Discovered series — potential new series</summary>
     <p>AI Cinema looks for repeated phrases in unclassified video titles. Review suggestions and add the series to your library.</p>
