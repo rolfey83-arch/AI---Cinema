@@ -1,0 +1,47 @@
+
+name: AI Cinema Episode Monitor
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-cinema-monitor
+  cancel-in-progress: false
+
+jobs:
+  check-episodes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository files
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run YouTube monitor
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python monitor/check_channels.py
+
+      - name: Save monitoring results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add monitor/state.json data/new-episodes.json
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Update AI Cinema episode monitoring data"
+            git push
+          else
+            echo "No monitoring changes to save"
+          fi
