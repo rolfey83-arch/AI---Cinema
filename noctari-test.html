@@ -5,310 +5,155 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Cinema — Series Discovery Engine</title>
-
 <style>
 :root {
   color-scheme: dark;
-  --bg: #101116;
-  --panel: #1b1d25;
-  --border: #303440;
-  --text: #f1f2f5;
-  --muted: #a7adba;
-  --accent: #a78bfa;
-  --accent-hover: #8b6cf0;
-  --success: #70d6a0;
+  --bg:#101116; --panel:#1b1d25; --border:#303440;
+  --text:#f1f2f5; --muted:#a7adba;
+  --accent:#a78bfa; --accent-hover:#8b6cf0;
+  --success:#70d6a0;
 }
-
-* { box-sizing: border-box; }
-
+* {box-sizing:border-box}
 body {
-  margin: 0;
-  padding: 30px 16px;
-  background: var(--bg);
-  color: var(--text);
-  font-family: Arial, sans-serif;
-  line-height: 1.5;
+  margin:0; padding:30px 16px; background:var(--bg);
+  color:var(--text); font-family:Arial,sans-serif; line-height:1.5;
 }
-
-main {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-header { margin-bottom: 28px; }
-
-h1 {
-  margin-bottom: 8px;
-  font-size: clamp(28px, 5vw, 40px);
-}
-
-h2 {
-  margin-top: 30px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid var(--border);
-}
-
-.intro, .note, small { color: var(--muted); }
-
+main {max-width:1100px;margin:0 auto}
+header {margin-bottom:28px}
+h1 {margin-bottom:8px;font-size:clamp(28px,5vw,40px)}
+h2 {margin-top:30px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+h3 {margin:0 0 7px}
+.intro,.note,small {color:var(--muted)}
 .panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 22px;
-  margin-bottom: 22px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;padding:22px;margin-bottom:22px;
 }
-
-label {
-  display: block;
-  margin: 16px 0 7px;
-  font-weight: bold;
+label {display:block;margin:16px 0 7px;font-weight:bold}
+input,select {
+  display:block;width:100%;padding:12px;border:1px solid var(--border);
+  border-radius:7px;background:#11131a;color:var(--text);font-size:16px;
 }
-
-input, select {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: #11131a;
-  color: var(--text);
-  font-size: 16px;
-}
-
-input:focus, select:focus {
-  outline: 2px solid var(--accent);
-  border-color: var(--accent);
-}
-
-small {
-  display: block;
-  margin-top: 6px;
-}
-
+input:focus,select:focus {outline:2px solid var(--accent);border-color:var(--accent)}
+small {display:block;margin-top:6px}
 button {
-  margin-top: 22px;
-  padding: 13px 20px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--accent);
-  color: #17131f;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
+  margin-top:22px;padding:13px 20px;border:0;border-radius:7px;
+  background:var(--accent);color:#17131f;font-size:16px;
+  font-weight:bold;cursor:pointer;
 }
-
-button:hover {
-  background: var(--accent-hover);
-  color: white;
-}
-
-button:disabled {
-  opacity: .5;
-  cursor: wait;
-}
-
-#status {
-  margin-top: 18px;
-  color: var(--success);
-  overflow-wrap: anywhere;
-}
-
+button:hover {background:var(--accent-hover);color:white}
+button:disabled {opacity:.5;cursor:wait}
+#status {margin-top:18px;color:var(--success);overflow-wrap:anywhere}
 .filters {
-  display: grid;
-  grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.5fr);
-  gap: 14px;
-  align-items: end;
-  margin: 18px 0;
+  display:grid;grid-template-columns:minmax(180px,.8fr) minmax(240px,1.5fr);
+  gap:14px;align-items:end;margin:18px 0;
 }
-
-.filters label { margin-top: 0; }
-
-.summary {
-  color: var(--muted);
-  font-size: 14px;
-  margin: 8px 0 18px;
-}
-
+.filters label {margin-top:0}
+.summary {color:var(--muted);font-size:14px;margin:8px 0 18px}
 .episode {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
+  display:flex;gap:16px;align-items:flex-start;
+  padding:14px 0;border-bottom:1px solid var(--border);
 }
-
 .episode img {
-  width: 160px;
-  max-width: 35%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: 7px;
-  background: #252832;
+  width:160px;max-width:35%;height:auto;aspect-ratio:16/9;
+  object-fit:cover;border-radius:7px;background:#252832;
 }
-
-.episode a {
-  color: var(--text);
-  font-weight: bold;
-  text-decoration: none;
-}
-
-.episode a:hover {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
-.meta {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.description {
-  margin-top: 7px;
-  color: #c7cad3;
-  font-size: 14px;
-}
-
-.empty {
-  color: var(--muted);
-  padding: 18px 0;
-}
-
+.episode a {color:var(--text);font-weight:bold;text-decoration:none}
+.episode a:hover {color:var(--accent);text-decoration:underline}
+.meta {margin-top:8px;color:var(--muted);font-size:13px}
+.description {margin-top:7px;color:#c7cad3;font-size:14px}
+.empty {color:var(--muted);padding:18px 0}
 .library-info {
-  background: #151720;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 20px;
-  color: var(--muted);
-  font-size: 14px;
+  background:#151720;border:1px solid var(--border);border-radius:8px;
+  padding:14px;margin-bottom:20px;color:var(--muted);font-size:14px;
 }
-
-@media (max-width: 600px) {
-  body { padding: 20px 12px; }
-  .panel { padding: 16px; }
-  .filters { grid-template-columns: 1fr; }
-  .episode { gap: 10px; }
-  .episode img { width: 115px; }
+.discovery-panel {
+  background:#191722;border:1px solid #51456f;
+  border-radius:10px;padding:18px;margin:18px 0 24px;
+}
+.discovery-panel>p {color:var(--muted);font-size:14px;margin-top:5px}
+.discovery-card {
+  display:flex;justify-content:space-between;align-items:center;
+  gap:15px;padding:14px 0;border-top:1px solid var(--border);
+}
+.discovery-details {min-width:0}
+.discovery-details strong {display:block;overflow-wrap:anywhere}
+.discovery-details small {margin-top:3px}
+.discovery-card button {
+  flex-shrink:0;margin:0;padding:10px 15px;font-size:14px;
+}
+.discovery-empty {color:var(--muted);font-size:14px;padding:12px 0 3px}
+@media(max-width:600px) {
+  body {padding:20px 12px}
+  .panel {padding:16px}
+  .filters {grid-template-columns:1fr}
+  .episode {gap:10px}
+  .episode img {width:115px}
+  .discovery-card {align-items:flex-start}
+  .discovery-card button {padding:9px 11px}
 }
 </style>
 </head>
-
 <body>
 <main>
-
 <header>
   <h1>AI Cinema</h1>
-  <p class="intro">
-    Series Discovery Engine — find episodes, Shorts and
-    related content across YouTube AI series.
-  </p>
+  <p class="intro">Series Discovery Engine — find episodes, Shorts and related content across YouTube AI series.</p>
 </header>
 
 <section class="panel">
-
   <h2>Discovery settings</h2>
 
   <label for="apiKey">YouTube Data API key</label>
-  <input
-    type="password"
-    id="apiKey"
-    autocomplete="off"
-    placeholder="Enter your YouTube API key"
-  >
-  <small>
-    Your API key is entered in this browser session and is not
-    saved by this page.
-  </small>
+  <input type="password" id="apiKey" autocomplete="off" placeholder="Enter your YouTube API key">
+  <small>Your API key is entered in this browser session and is not saved by this page.</small>
 
   <label for="handle">YouTube channel handle</label>
-  <input
-    type="text"
-    id="handle"
-    value="@blackeyemedia70"
-    placeholder="@channelhandle"
-  >
+  <input type="text" id="handle" value="@blackeyemedia70" placeholder="@channelhandle">
 
   <label for="playlists">Additional playlist URLs (optional)</label>
-  <input
-    type="text"
-    id="playlists"
-    placeholder="Paste playlist URLs, separated by commas"
-  >
-
-  <small>
-    Leave blank to scan channel uploads automatically.
-    Additional playlists are included in the same library.
-  </small>
+  <input type="text" id="playlists" placeholder="Paste playlist URLs, separated by commas">
+  <small>Leave blank to scan channel uploads automatically. Additional playlists are included in the same library.</small>
 
   <label for="seriesNames">Series names to recognise</label>
-  <input
-    type="text"
-    id="seriesNames"
-    value="Noctari, Quantum 13, The Wizard of Oz"
-    placeholder="Series names, separated by commas"
-  >
+  <input type="text" id="seriesNames" value="Noctari, Quantum 13, The Wizard of Oz" placeholder="Series names, separated by commas">
+  <small>These names are remembered separately for each channel. You can also add discovered series below.</small>
 
-  <small>
-    Enter the series names belonging to this channel.
-    These settings are remembered separately for each channel.
-  </small>
-
-  <button id="scanButton" type="button">
-    Scan channel and add to saved library
-  </button>
-
-  <p id="status" role="status" aria-live="polite">
-    Opening saved library...
-  </p>
-
+  <button id="scanButton" type="button">Scan channel and add to saved library</button>
+  <p id="status" role="status" aria-live="polite">Opening saved library...</p>
 </section>
 
 <section>
-
   <h2>Saved series library</h2>
+  <div class="library-info" id="libraryInfo">Loading saved library...</div>
 
-  <div class="library-info" id="libraryInfo">
-    Loading saved library...
-  </div>
+  <section class="discovery-panel">
+    <h3>Discovered series</h3>
+    <p>AI Cinema looks for repeated phrases in unclassified video titles. If it finds a likely series, you can add it with one click.</p>
+    <div id="discoveredSeries">
+      <div class="discovery-empty">Scan a channel to discover potential series.</div>
+    </div>
+  </section>
 
   <div class="filters">
-
     <div>
       <label for="seriesFilter">Series</label>
-      <select id="seriesFilter" disabled>
-        <option value="all">All series</option>
-      </select>
+      <select id="seriesFilter" disabled><option value="all">All series</option></select>
     </div>
-
     <div>
       <label for="searchInput">Search titles and descriptions</label>
-      <input
-        id="searchInput"
-        type="search"
-        placeholder="Search any series, episode, character or keyword..."
-        disabled
-      >
+      <input id="searchInput" type="search" placeholder="Search any series, episode, character or keyword..." disabled>
     </div>
-
   </div>
 
-  <p id="librarySummary" class="summary">
-    Your saved library will appear here.
-  </p>
-
+  <p id="librarySummary" class="summary">Your saved library will appear here.</p>
+  <h2 id="resultHeading">Saved series library</h2>
   <div id="results"></div>
-
 </section>
 
 <p class="note">
-  Series recognition uses the names supplied in Discovery settings.
-  Unrecognised videos are retained under Unclassified.
-  Episode numbering and Shorts classification are estimates.
+  Series discovery uses recurring title patterns. Episode numbering and Shorts classification are estimates.
   Your saved library is stored in this browser on this device.
 </p>
-
 </main>
 
 <script>
@@ -317,14 +162,14 @@ button:disabled {
 
 const API = "https://www.googleapis.com/youtube/v3";
 const SHORT_CUTOFF_DATE = new Date("2024-10-15T00:00:00Z");
-
 const DB_NAME = "AICinemaLibrary";
 const DB_VERSION = 1;
 
 const $ = id => document.getElementById(id);
-
 let library = [];
 let db = null;
+let activeChannelId = null;
+let activeChannelTitle = "";
 
 /* STATUS */
 
@@ -335,148 +180,98 @@ function setStatus(message) {
 /* DATABASE */
 
 function openDatabase() {
-
-  return new Promise((resolve, reject) => {
-
+  return new Promise((resolve,reject) => {
     if (!window.indexedDB) {
       reject(new Error("This browser does not support IndexedDB."));
       return;
     }
-
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
+    const request = indexedDB.open(DB_NAME,DB_VERSION);
     request.onupgradeneeded = event => {
-
       const database = event.target.result;
-
-      if (!database.objectStoreNames.contains("videos")) {
-        database.createObjectStore("videos", { keyPath: "id" });
-      }
-
-      if (!database.objectStoreNames.contains("channels")) {
-        database.createObjectStore("channels", { keyPath: "id" });
-      }
+      if (!database.objectStoreNames.contains("videos"))
+        database.createObjectStore("videos",{keyPath:"id"});
+      if (!database.objectStoreNames.contains("channels"))
+        database.createObjectStore("channels",{keyPath:"id"});
     };
-
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
-
-    request.onerror = () => {
-      reject(request.error || new Error("Could not open the library database."));
-    };
+    request.onsuccess = () => {db=request.result;resolve(db)};
+    request.onerror = () => reject(request.error || new Error("Could not open the library database."));
   });
 }
 
 function getAllRecords(storeName) {
-
-  return new Promise((resolve, reject) => {
-
-    const transaction = db.transaction(storeName, "readonly");
+  return new Promise((resolve,reject) => {
+    const transaction = db.transaction(storeName,"readonly");
     const request = transaction.objectStore(storeName).getAll();
-
     request.onsuccess = () => resolve(request.result || []);
-
     request.onerror = () => reject(request.error);
   });
 }
 
-function saveRecords(videos, channelRecord) {
-
-  return new Promise((resolve, reject) => {
-
-    const transaction = db.transaction(
-      ["videos", "channels"],
-      "readwrite"
-    );
-
+function saveRecords(videos,channelRecord) {
+  return new Promise((resolve,reject) => {
+    const transaction = db.transaction(["videos","channels"],"readwrite");
     const videoStore = transaction.objectStore("videos");
     const channelStore = transaction.objectStore("channels");
-
-    for (const video of videos) {
-      videoStore.put(video);
-    }
-
-    channelStore.put(channelRecord);
-
+    for (const video of videos) videoStore.put(video);
+    if (channelRecord) channelStore.put(channelRecord);
     transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(transaction.error || new Error("Could not save library."));
-    };
-
-    transaction.onabort = () => {
-      reject(transaction.error || new Error("Library save was cancelled."));
-    };
+    transaction.onerror = () => reject(transaction.error || new Error("Could not save library."));
+    transaction.onabort = () => reject(transaction.error || new Error("Library save was cancelled."));
   });
 }
 
 async function loadLibrary() {
-
   library = await getAllRecords("videos");
-
   refreshSeriesOptions();
   renderResults();
   updateLibraryInfo();
+  renderDiscoveredSeries();
 }
 
 function updateLibraryInfo() {
-
-  const seriesCount = new Set(
-    library.map(video => video.series)
-  ).size;
-
-  const channelCount = new Set(
-    library.map(video => video.channelId)
-  ).size;
-
+  const seriesCount = new Set(library.map(video=>video.series)).size;
+  const channelCount = new Set(library.map(video=>video.channelId)).size;
   $("libraryInfo").textContent =
-    library.length + " saved videos · " +
-    seriesCount + " series/categories · " +
-    channelCount + " channels";
+    library.length+" saved videos · "+seriesCount+" series/categories · "+channelCount+" channels";
 }
 
 /* CHANNEL SETTINGS */
 
 function cleanHandle(value) {
-  return value.trim().replace(/^@/, "").toLowerCase();
+  return value.trim().replace(/^@/,"").toLowerCase();
 }
 
 async function loadChannelSettings() {
-
   if (!db) return;
-
   const handle = cleanHandle($("handle").value);
+  activeChannelId = null;
+  activeChannelTitle = "";
 
-  if (!handle) return;
+  if (!handle) {
+    renderDiscoveredSeries();
+    return;
+  }
 
   try {
-
     const channels = await getAllRecords("channels");
+    const saved = channels.find(channel=>cleanHandle(channel.handle)===handle);
 
-    const saved = channels.find(channel =>
-      cleanHandle(channel.handle) === handle
-    );
-
-    if (saved && Array.isArray(saved.seriesNames)) {
-
-      $("seriesNames").value = saved.seriesNames.join(", ");
-
-      setStatus(
-        "Loaded saved settings for " + saved.title + "."
-      );
+    if (saved) {
+      activeChannelId = saved.id;
+      activeChannelTitle = saved.title || "";
+      if (Array.isArray(saved.seriesNames))
+        $("seriesNames").value = saved.seriesNames.join(", ");
+      setStatus("Loaded saved settings for "+saved.title+".");
     }
-
-  } catch (error) {
-    console.error("Could not load channel settings:", error);
+    renderDiscoveredSeries();
+  } catch(error) {
+    console.error("Could not load channel settings:",error);
   }
 }
 
 /* PLAYLIST URL */
 
 function getPlaylistId(value) {
-
   try {
     const url = new URL(value.trim());
     return url.searchParams.get("list") || "";
@@ -487,101 +282,61 @@ function getPlaylistId(value) {
 
 /* YOUTUBE API */
 
-async function apiRequest(endpoint, params, key) {
-
-  const url = new URL(API + "/" + endpoint);
-
-  Object.entries({...params, key}).forEach(([name, value]) => {
-
-    if (value !== undefined && value !== "") {
-      url.searchParams.set(name, value);
-    }
-
+async function apiRequest(endpoint,params,key) {
+  const url = new URL(API+"/"+endpoint);
+  Object.entries({...params,key}).forEach(([name,value])=>{
+    if (value!==undefined && value!=="")
+      url.searchParams.set(name,value);
   });
 
   const response = await fetch(url);
-
   if (!response.ok) {
-
     let detail = "";
-
     try {
       const data = await response.json();
       detail = data.error?.message || "";
     } catch {}
-
-    throw new Error(
-      "YouTube API HTTP " + response.status +
-      (detail ? ": " + detail : "")
-    );
+    throw new Error("YouTube API HTTP "+response.status+(detail?": "+detail:""));
   }
-
   return response.json();
 }
 
-/* FIND CHANNEL */
-
-async function findChannel(handle, key) {
-
-  const clean = handle.trim().replace(/^@/, "");
-
-  const data = await apiRequest("channels", {
-    part: "snippet,contentDetails",
-    forHandle: clean
-  }, key);
-
-  if (!data.items?.length) {
+async function findChannel(handle,key) {
+  const clean = handle.trim().replace(/^@/,"");
+  const data = await apiRequest("channels",{
+    part:"snippet,contentDetails",forHandle:clean
+  },key);
+  if (!data.items?.length)
     throw new Error("YouTube could not find that channel handle.");
-  }
-
   return data.items[0];
 }
 
 /* SCAN PLAYLIST */
 
-async function scanPlaylist(playlistId, key, progressLabel) {
-
+async function scanPlaylist(playlistId,key,progressLabel) {
   const videos = [];
   let pageToken = "";
 
   do {
-
-    const data = await apiRequest("playlistItems", {
-      part: "snippet,contentDetails",
-      playlistId,
-      maxResults: 50,
-      pageToken
-    }, key);
+    const data = await apiRequest("playlistItems",{
+      part:"snippet,contentDetails",playlistId,maxResults:50,pageToken
+    },key);
 
     for (const item of data.items || []) {
-
-      const videoId =
-        item.contentDetails?.videoId ||
-        item.snippet?.resourceId?.videoId;
-
+      const videoId = item.contentDetails?.videoId || item.snippet?.resourceId?.videoId;
       if (!videoId) continue;
-
       videos.push({
-
-        id: videoId,
-
-        title: item.snippet?.title || "Untitled",
-
-        description: item.snippet?.description || "",
-
-        date:
-          item.contentDetails?.videoPublishedAt ||
-          item.snippet?.publishedAt || ""
+        id:videoId,
+        title:item.snippet?.title || "Untitled",
+        description:item.snippet?.description || "",
+        date:item.contentDetails?.videoPublishedAt || item.snippet?.publishedAt || ""
       });
     }
 
     pageToken = data.nextPageToken || "";
-
-    if (progressLabel) {
-      setStatus(progressLabel + " — " + videos.length + " videos found...");
-    }
-
-  } while (pageToken);
+    if (progressLabel)
+      setStatus(progressLabel+" — "+videos.length+" videos found...");
+  } while(pageToken);
 
   return videos;
 }
@@ -589,61 +344,38 @@ async function scanPlaylist(playlistId, key, progressLabel) {
 /* SERIES RECOGNITION */
 
 function getSeriesNames() {
-
   return [...new Set(
-    $("seriesNames").value
-      .split(",")
-      .map(name => name.trim())
-      .filter(Boolean)
-  )].sort((a, b) => b.length - a.length);
-
+    $("seriesNames").value.split(",").map(name=>name.trim()).filter(Boolean)
+  )].sort((a,b)=>b.length-a.length);
 }
 
-function identifySeries(video, names) {
-
+function identifySeries(video,names) {
   const title = video.title.toLocaleLowerCase();
   const description = video.description.toLocaleLowerCase();
 
-  const titleMatch = names.find(name =>
-    title.includes(name.toLocaleLowerCase())
-  );
-
+  const titleMatch = names.find(name=>title.includes(name.toLocaleLowerCase()));
   if (titleMatch) return titleMatch;
 
-  const descriptionMatch = names.find(name =>
-    description.includes(name.toLocaleLowerCase())
-  );
-
+  const descriptionMatch = names.find(name=>description.includes(name.toLocaleLowerCase()));
   return descriptionMatch || "Unclassified";
 }
 
 /* EPISODE NUMBER */
 
 function episodeNumber(title) {
-
   const patterns = [
-
     /\b(?:PART|EPISODE|EP)\s*#?\s*([1-9]\d*)\b/i,
-
     /\bS\d+\s*E\s*([1-9]\d*)\b/i,
-
     /#\s*([1-9]\d*)\b/
-
   ];
 
   for (const pattern of patterns) {
-
     const match = title.match(pattern);
-
     if (match) return Number(match[1]);
   }
 
-  if (
-    /\bNOCTARI\b/i.test(title) &&
-    /\bARRIVAL\b/i.test(title)
-  ) {
+  if (/\bNOCTARI\b/i.test(title) && /\bARRIVAL\b/i.test(title))
     return 1;
-  }
 
   return null;
 }
@@ -651,158 +383,278 @@ function episodeNumber(title) {
 /* DURATION */
 
 function parseDuration(value) {
-
   if (!value) return null;
-
-  const match = value.match(
-    /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/
-  );
-
+  const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
   if (!match) return null;
-
-  return (
-    Number(match[1] || 0) * 3600 +
-    Number(match[2] || 0) * 60 +
-    Number(match[3] || 0)
-  );
+  return Number(match[1]||0)*3600 + Number(match[2]||0)*60 + Number(match[3]||0);
 }
 
 function formatDuration(seconds) {
-
-  if (seconds === null || seconds === undefined) {
-    return "Duration unavailable";
-  }
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-
-  if (hours) {
-
-    return hours + ":" +
-      String(minutes).padStart(2, "0") + ":" +
-      String(secs).padStart(2, "0");
-  }
-
-  return minutes + ":" + String(secs).padStart(2, "0");
+  if (seconds===null || seconds===undefined) return "Duration unavailable";
+  const hours = Math.floor(seconds/3600);
+  const minutes = Math.floor((seconds%3600)/60);
+  const secs = seconds%60;
+  if (hours)
+    return hours+":"+String(minutes).padStart(2,"0")+":"+String(secs).padStart(2,"0");
+  return minutes+":"+String(secs).padStart(2,"0");
 }
 
 /* VIDEO DETAILS */
 
-async function addVideoDetails(videos, key) {
-
+async function addVideoDetails(videos,key) {
   const detailMap = new Map();
 
-  for (let i = 0; i < videos.length; i += 50) {
-
-    const batch = videos.slice(i, i + 50);
-
-    const data = await apiRequest("videos", {
-      part: "contentDetails,snippet",
-      id: batch.map(video => video.id).join(",")
-    }, key);
+  for (let i=0;i<videos.length;i+=50) {
+    const batch = videos.slice(i,i+50);
+    const data = await apiRequest("videos",{
+      part:"contentDetails,snippet",
+      id:batch.map(video=>video.id).join(",")
+    },key);
 
     for (const item of data.items || []) {
-
-      detailMap.set(item.id, {
-
-        duration: parseDuration(
-          item.contentDetails?.duration
-        ),
-
-        description: item.snippet?.description || ""
-
+      detailMap.set(item.id,{
+        duration:parseDuration(item.contentDetails?.duration),
+        description:item.snippet?.description || ""
       });
     }
 
-    setStatus(
-      "Retrieving details for videos " +
-      Math.min(i + 50, videos.length) +
-      " of " + videos.length + "..."
-    );
+    setStatus("Retrieving details for videos "+Math.min(i+50,videos.length)+" of "+videos.length+"...");
   }
 
-  return videos.map(video => {
-
+  return videos.map(video=>{
     const details = detailMap.get(video.id) || {};
-
     return {
       ...video,
-      description: details.description || video.description || "",
-      duration: details.duration ?? null
+      description:details.description || video.description || "",
+      duration:details.duration ?? null
     };
-
   });
 }
 
 /* SORTING */
 
 function sortVideos(videos) {
-
-  return videos.sort((a, b) => {
-
+  return videos.sort((a,b)=>{
     const an = episodeNumber(a.title);
     const bn = episodeNumber(b.title);
 
-    if (an !== null && bn !== null && an !== bn) {
-      return an - bn;
-    }
+    if (an!==null && bn!==null && an!==bn) return an-bn;
+    if (an!==null && bn===null) return -1;
+    if (bn!==null && an===null) return 1;
 
-    if (an !== null && bn === null) return -1;
-    if (bn !== null && an === null) return 1;
-
-    return new Date(a.date || 0) -
-           new Date(b.date || 0);
-
+    return new Date(a.date||0)-new Date(b.date||0);
   });
-
 }
 
 /* CLASSIFICATION */
 
 function classifyVideo(video) {
+  if (video.duration===null) return "unknown";
+  const published = video.date ? new Date(video.date) : null;
+  const oldVideo = !published || published<SHORT_CUTOFF_DATE;
+  return video.duration <= (oldVideo?60:180) ? "short" : "episode";
+}
 
-  if (video.duration === null) return "unknown";
+/* DISCOVERY ENGINE */
 
-  const published = video.date
-    ? new Date(video.date)
-    : null;
+const DISCOVERY_STOP_WORDS = new Set([
+  "a","an","the","and","or","of","to","in","on","at","by","for","with","from","as",
+  "episode","episodes","ep","part","chapter","season","series","official","trailer",
+  "teaser","preview","clip","clips","short","shorts","video","videos","full",
+  "complete","final","scene","scenes","hd","4k","new"
+]);
 
-  const oldVideo =
-    !published || published < SHORT_CUTOFF_DATE;
+function titleWords(title) {
+  return title.match(/[\p{L}\p{N}]+/gu) || [];
+}
 
-  const shortLimit = oldVideo ? 60 : 180;
+function buildDiscoveryCandidates() {
+  if (!activeChannelId) return [];
 
-  return video.duration <= shortLimit
-    ? "short"
-    : "episode";
+  const unclassified = library.filter(video=>
+    video.channelId===activeChannelId && video.series==="Unclassified"
+  );
+
+  const candidates = new Map();
+
+  for (const video of unclassified) {
+    const words = titleWords(video.title);
+    const phrases = new Set();
+
+    for (let length=2;length<=4;length++) {
+      for (let i=0;i<=words.length-length;i++) {
+        const group = words.slice(i,i+length);
+        const phrase = group.join(" ").toLocaleLowerCase();
+
+        if (group.some(word=>DISCOVERY_STOP_WORDS.has(word.toLowerCase())))
+          continue;
+        if (phrase.length<4) continue;
+
+        phrases.add(phrase);
+      }
+    }
+
+    for (const phrase of phrases) {
+      if (!candidates.has(phrase)) {
+        candidates.set(phrase,{
+          phrase,
+          videoIds:new Set(),
+          examples:[]
+        });
+      }
+
+      const candidate = candidates.get(phrase);
+      candidate.videoIds.add(video.id);
+      if (candidate.examples.length<3)
+        candidate.examples.push(video.title);
+    }
+  }
+
+  let found = [...candidates.values()]
+    .filter(candidate=>candidate.videoIds.size>=2);
+
+  // Prefer a longer phrase when it matches exactly the same videos.
+  found = found.filter(candidate=>{
+    return !found.some(other=>{
+      if (other.phrase===candidate.phrase) return false;
+      if (other.phrase.length<=candidate.phrase.length) return false;
+
+      const contains = other.phrase.includes(candidate.phrase);
+      const sameVideos = [...candidate.videoIds].every(id=>other.videoIds.has(id));
+
+      return contains && sameVideos;
+    });
+  });
+
+  return found.sort((a,b)=>
+    b.videoIds.size-a.videoIds.size ||
+    b.phrase.length-a.phrase.length
+  );
+}
+
+function displaySeriesName(phrase) {
+  return phrase.split(" ").map(word=>
+    word.charAt(0).toLocaleUpperCase()+word.slice(1)
+  ).join(" ");
+}
+
+function renderDiscoveredSeries() {
+  const container = $("discoveredSeries");
+  container.replaceChildren();
+
+  if (!activeChannelId) {
+    container.innerHTML =
+      '<div class="discovery-empty">Scan a channel first, or enter a channel you have previously scanned.</div>';
+    return;
+  }
+
+  const candidates = buildDiscoveryCandidates();
+
+  if (!candidates.length) {
+    container.innerHTML =
+      '<div class="discovery-empty">No new series suggestions found for this channel yet. Unclassified videos with repeated title patterns will appear here.</div>';
+    return;
+  }
+
+  for (const candidate of candidates) {
+    const card = document.createElement("div");
+    card.className = "discovery-card";
+
+    const details = document.createElement("div");
+    details.className = "discovery-details";
+
+    const title = document.createElement("strong");
+    title.textContent = displaySeriesName(candidate.phrase);
+
+    const count = document.createElement("small");
+    count.textContent = candidate.videoIds.size+" matching videos found";
+
+    const examples = document.createElement("small");
+    examples.textContent = "Example: "+candidate.examples[0];
+
+    details.append(title,count,examples);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Add series";
+    button.addEventListener("click",()=>addDiscoveredSeries(candidate));
+
+    card.append(details,button);
+    container.appendChild(card);
+  }
+}
+
+/* ADD A DISCOVERED SERIES */
+
+async function addDiscoveredSeries(candidate) {
+  if (!db || !activeChannelId) {
+    setStatus("Please scan or select a channel first.");
+    return;
+  }
+
+  const seriesName = displaySeriesName(candidate.phrase);
+  const ids = candidate.videoIds;
+
+  try {
+    setStatus("Adding "+seriesName+" to your series library...");
+
+    const channels = await getAllRecords("channels");
+    const channel = channels.find(item=>item.id===activeChannelId);
+
+    if (!channel)
+      throw new Error("The saved channel record could not be found.");
+
+    const names = Array.isArray(channel.seriesNames) ? [...channel.seriesNames] : [];
+
+    if (!names.some(name=>name.toLowerCase()===seriesName.toLowerCase()))
+      names.push(seriesName);
+
+    const records = library
+      .filter(video=>ids.has(video.id) && video.channelId===activeChannelId)
+      .map(video=>({...video,series:seriesName}));
+
+    if (!records.length) {
+      setStatus("No matching videos remain to add.");
+      return;
+    }
+
+    channel.seriesNames = names;
+    channel.lastScanned = channel.lastScanned || new Date().toISOString();
+
+    await saveRecords(records,channel);
+
+    $("seriesNames").value = names.join(", ");
+
+    await loadLibrary();
+
+    $("seriesFilter").value = seriesName;
+    renderResults();
+
+    setStatus(
+      "Added "+seriesName+" successfully. "+records.length+
+      " videos have been added to the series. No YouTube rescan was needed."
+    );
+
+  } catch(error) {
+    console.error(error);
+    setStatus("Could not add series: "+error.message);
+  }
 }
 
 /* RENDER VIDEO */
 
-function renderVideo(video, type) {
-
+function renderVideo(video,type) {
   const card = document.createElement("article");
   card.className = "episode";
 
   const image = document.createElement("img");
-
   image.loading = "lazy";
   image.alt = "";
-
-  image.src =
-    "https://i.ytimg.com/vi/" +
-    encodeURIComponent(video.id) +
-    "/mqdefault.jpg";
+  image.src = "https://i.ytimg.com/vi/"+encodeURIComponent(video.id)+"/mqdefault.jpg";
 
   const details = document.createElement("div");
-
   const link = document.createElement("a");
-
-  link.href =
-    "https://www.youtube.com/watch?v=" +
-    encodeURIComponent(video.id);
-
+  link.href = "https://www.youtube.com/watch?v="+encodeURIComponent(video.id);
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.textContent = video.title;
@@ -811,412 +663,263 @@ function renderVideo(video, type) {
   meta.className = "meta";
 
   const number = episodeNumber(video.title);
-
   let label;
 
-  if (type === "short") {
-    label = "Short-form candidate";
-  } else if (type === "unknown") {
-    label = "Duration unavailable";
-  } else {
-    label = number !== null
-      ? "Episode " + number
-      : "Episode number not recognised";
-  }
+  if (type==="short") label = "Short-form candidate";
+  else if (type==="unknown") label = "Duration unavailable";
+  else label = number!==null ? "Episode "+number : "Episode number not recognised";
 
-  const dateText = video.date
-    ? " · " + new Date(video.date).toLocaleDateString()
-    : "";
-
-  const channelText = video.channelTitle
-    ? " · Channel: " + video.channelTitle
-    : "";
+  const dateText = video.date ? " · "+new Date(video.date).toLocaleDateString() : "";
+  const channelText = video.channelTitle ? " · Channel: "+video.channelTitle : "";
 
   meta.textContent =
-    video.series + " · " +
-    label + " · " +
-    formatDuration(video.duration) +
-    dateText +
-    channelText;
+    video.series+" · "+label+" · "+formatDuration(video.duration)+dateText+channelText;
 
-  details.append(link, meta);
+  details.append(link,meta);
 
   if (video.description) {
-
     const description = document.createElement("div");
-
     description.className = "description";
-
-    const trimmed = video.description.length > 320
-      ? video.description.slice(0, 320).trimEnd() + "..."
+    description.textContent = video.description.length>320
+      ? video.description.slice(0,320).trimEnd()+"..."
       : video.description;
-
-    description.textContent = trimmed;
-
     details.appendChild(description);
   }
 
-  card.append(image, details);
-
+  card.append(image,details);
   return card;
 }
 
 /* SERIES DROPDOWN */
 
 function refreshSeriesOptions() {
-
   const select = $("seriesFilter");
   const current = select.value || "all";
-
-  const names = [...new Set(
-    library.map(video => video.series)
-  )].sort((a, b) => a.localeCompare(b));
+  const names = [...new Set(library.map(video=>video.series))]
+    .sort((a,b)=>a.localeCompare(b));
 
   select.replaceChildren();
 
   const all = document.createElement("option");
-
   all.value = "all";
   all.textContent = "All series";
-
   select.appendChild(all);
 
   for (const name of names) {
-
     const option = document.createElement("option");
-
     option.value = name;
     option.textContent = name;
-
     select.appendChild(option);
   }
 
   select.value = names.includes(current) ? current : "all";
-
-  select.disabled = library.length === 0;
-  $("searchInput").disabled = library.length === 0;
+  select.disabled = library.length===0;
+  $("searchInput").disabled = library.length===0;
 }
 
 /* SEARCH AND FILTER */
 
 function renderResults() {
-
   const results = $("results");
-
   results.replaceChildren();
 
   if (!library.length) {
-
     results.className = "empty";
-
-    results.textContent =
-      "Your saved library is empty. Scan a channel to get started.";
-
+    results.textContent = "Your saved library is empty. Scan a channel to get started.";
     $("librarySummary").textContent = "No saved videos yet.";
-
     $("resultHeading").textContent = "Saved series library";
-
     return;
   }
 
   const selectedSeries = $("seriesFilter").value;
+  const query = $("searchInput").value.trim().toLocaleLowerCase();
 
-  const query = $("searchInput")
-    .value.trim().toLocaleLowerCase();
-
-  const filtered = library.filter(video => {
-
-    const seriesMatch =
-      selectedSeries === "all" ||
-      video.series === selectedSeries;
-
+  const filtered = library.filter(video=>{
+    const seriesMatch = selectedSeries==="all" || video.series===selectedSeries;
     const searchMatch =
       !query ||
       video.title.toLocaleLowerCase().includes(query) ||
-      video.description.toLocaleLowerCase().includes(query) ||
+      (video.description||"").toLocaleLowerCase().includes(query) ||
       video.series.toLocaleLowerCase().includes(query) ||
-      (video.channelTitle || "").toLocaleLowerCase().includes(query);
-
+      (video.channelTitle||"").toLocaleLowerCase().includes(query);
     return seriesMatch && searchMatch;
-
   });
 
   $("librarySummary").textContent =
-    "Showing " + filtered.length +
-    " of " + library.length +
-    " saved videos · " +
-    new Set(library.map(video => video.series)).size +
+    "Showing "+filtered.length+" of "+library.length+
+    " saved videos · "+new Set(library.map(video=>video.series)).size+
     " series/categories found.";
 
   if (!filtered.length) {
-
     results.className = "empty";
-
-    results.textContent =
-      "No videos match those filters. Try another search or choose All series.";
-
-    $("resultHeading").textContent =
-      "Saved series library (0)";
-
+    results.textContent = "No videos match those filters. Try another search or choose All series.";
+    $("resultHeading").textContent = "Saved series library (0)";
     return;
   }
 
   results.className = "";
 
   const groups = [
-    { key: "episode", title: "Full episodes" },
-    { key: "short", title: "Shorts / short-form candidates" },
-    { key: "unknown", title: "Needs checking" }
+    {key:"episode",title:"Full episodes"},
+    {key:"short",title:"Shorts / short-form candidates"},
+    {key:"unknown",title:"Needs checking"}
   ];
 
   let count = 0;
 
   for (const group of groups) {
-
-    const videos = sortVideos(
-      filtered.filter(video => classifyVideo(video) === group.key)
-    );
-
+    const videos = sortVideos(filtered.filter(video=>classifyVideo(video)===group.key));
     if (!videos.length) continue;
 
     const heading = document.createElement("h2");
-
-    heading.textContent =
-      group.title + " (" + videos.length + ")";
-
+    heading.textContent = group.title+" ("+videos.length+")";
     results.appendChild(heading);
 
-    for (const video of videos) {
-      results.appendChild(renderVideo(video, group.key));
-    }
+    for (const video of videos)
+      results.appendChild(renderVideo(video,group.key));
 
     count += videos.length;
   }
 
-  $("resultHeading").textContent =
-    "Saved series library (" + count + ")";
+  $("resultHeading").textContent = "Saved series library ("+count+")";
 }
 
 /* SAVE A CHANNEL SCAN */
 
-async function addScanToLibrary(channel, videos, handle, names) {
-
+async function addScanToLibrary(channel,videos,handle,names) {
   const existingVideos = await getAllRecords("videos");
   const existingChannels = await getAllRecords("channels");
 
-  const existingById = new Map(
-    existingVideos.map(video => [video.id, video])
-  );
-
-  const existingChannel = existingChannels.find(
-    item => item.id === channel.id
-  );
-
+  const existingById = new Map(existingVideos.map(video=>[video.id,video]));
+  const existingChannel = existingChannels.find(item=>item.id===channel.id);
   const now = new Date().toISOString();
 
   let added = 0;
   let updated = 0;
 
-  const records = videos.map(video => {
-
+  const records = videos.map(video=>{
     const previous = existingById.get(video.id);
-
-    if (previous) {
-      updated++;
-    } else {
-      added++;
-    }
+    if (previous) updated++;
+    else added++;
 
     return {
-
       ...previous,
       ...video,
-
-      series: video.series,
-
-      channelId: channel.id,
-      channelTitle: channel.snippet?.title || "Unknown channel",
-      channelHandle: handle,
-
-      firstAdded: previous?.firstAdded || now,
-      lastScanned: now
+      series:video.series,
+      channelId:channel.id,
+      channelTitle:channel.snippet?.title || "Unknown channel",
+      channelHandle:handle,
+      firstAdded:previous?.firstAdded || now,
+      lastScanned:now
     };
   });
 
   const channelRecord = {
-
-    id: channel.id,
-
-    title: channel.snippet?.title || "Unknown channel",
-
-    handle: handle,
-
-    seriesNames: names,
-
-    firstAdded: existingChannel?.firstAdded || now,
-
-    lastScanned: now,
-
-    videoCount: videos.length
+    id:channel.id,
+    title:channel.snippet?.title || "Unknown channel",
+    handle:handle,
+    seriesNames:names,
+    firstAdded:existingChannel?.firstAdded || now,
+    lastScanned:now,
+    videoCount:videos.length
   };
 
-  await saveRecords(records, channelRecord);
-
-  return { added, updated };
+  await saveRecords(records,channelRecord);
+  return {added,updated};
 }
 
 /* MAIN SCAN */
 
 async function runScan() {
-
   const key = $("apiKey").value.trim();
   const handle = $("handle").value.trim();
   const button = $("scanButton");
 
   if (!key) {
-
     setStatus("Please enter a YouTube API key first.");
-
     $("apiKey").focus();
-
     return;
   }
 
   if (!handle) {
-
     setStatus("Please enter the creator's YouTube handle.");
-
     return;
   }
 
   button.disabled = true;
 
   try {
-
     setStatus("Finding the creator's channel...");
+    const channel = await findChannel(handle,key);
 
-    const channel = await findChannel(handle, key);
-
-    const uploadsId =
-      channel.contentDetails?.relatedPlaylists?.uploads;
-
-    if (!uploadsId) {
+    const uploadsId = channel.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploadsId)
       throw new Error("Could not find the channel's uploads playlist.");
-    }
 
-    setStatus(
-      "Scanning " + channel.snippet.title + "..."
-    );
+    activeChannelId = channel.id;
+    activeChannelTitle = channel.snippet?.title || "";
 
-    const uploads = await scanPlaylist(
-      uploadsId,
-      key,
-      "Channel uploads scanned"
-    );
+    setStatus("Scanning "+channel.snippet.title+"...");
 
-    /* ADDITIONAL PLAYLISTS */
+    const uploads = await scanPlaylist(uploadsId,key,"Channel uploads scanned");
 
     const playlistInput = $("playlists").value.trim();
-
     const playlistIds = playlistInput
-      ? [...new Set(
-          playlistInput.split(",")
-            .map(getPlaylistId)
-            .filter(Boolean)
-        )]
+      ? [...new Set(playlistInput.split(",").map(getPlaylistId).filter(Boolean))]
       : [];
 
     const allVideos = [...uploads];
 
-    for (let i = 0; i < playlistIds.length; i++) {
-
+    for (let i=0;i<playlistIds.length;i++) {
       const extra = await scanPlaylist(
-        playlistIds[i],
-        key,
-        "Scanning additional playlist " + (i + 1)
+        playlistIds[i],key,"Scanning additional playlist "+(i+1)
       );
-
       allVideos.push(...extra);
     }
 
-    /* REMOVE DUPLICATES WITHIN THIS SCAN */
-
     const unique = new Map();
-
     for (const video of allVideos) {
-
-      if (!unique.has(video.id)) {
-        unique.set(video.id, video);
-      }
+      if (!unique.has(video.id)) unique.set(video.id,video);
     }
 
     const videos = [...unique.values()];
 
     if (!videos.length) {
-
       setStatus("The scan completed, but no videos were found.");
-
       return;
     }
 
-    /* GET VIDEO DETAILS */
-
-    setStatus(
-      "Retrieving descriptions and durations for " +
-      videos.length + " videos..."
-    );
-
-    const detailed = await addVideoDetails(videos, key);
-
-    /* IDENTIFY SERIES */
+    setStatus("Retrieving descriptions and durations for "+videos.length+" videos...");
+    const detailed = await addVideoDetails(videos,key);
 
     const names = getSeriesNames();
-
-    const classified = detailed.map(video => ({
+    const classified = detailed.map(video=>({
       ...video,
-      series: identifySeries(video, names)
+      series:identifySeries(video,names)
     }));
 
-    /* SAVE AUTOMATICALLY */
-
     setStatus("Saving videos into your permanent library...");
-
-    const result = await addScanToLibrary(
-      channel,
-      classified,
-      handle,
-      names
-    );
-
-    /* RELOAD THE COMPLETE SAVED LIBRARY */
+    const result = await addScanToLibrary(channel,classified,handle,names);
 
     await loadLibrary();
 
     $("seriesFilter").value = "all";
     $("searchInput").value = "";
-
     renderResults();
 
-    const unclassified = classified.filter(
-      video => video.series === "Unclassified"
-    ).length;
+    const unclassified = classified.filter(video=>video.series==="Unclassified").length;
 
     setStatus(
-      "Scan and save complete! " +
-      result.added + " new videos added; " +
-      result.updated + " existing videos updated. " +
-      unclassified + " videos unclassified. " +
-      "Your library now contains " + library.length + " videos."
+      "Scan and save complete! "+result.added+" new videos added; "+
+      result.updated+" existing videos updated. "+
+      unclassified+" videos unclassified. Your library now contains "+
+      library.length+" videos."
     );
 
-  } catch (error) {
-
+  } catch(error) {
     console.error(error);
-
-    setStatus("Scan failed: " + error.message);
-
+    setStatus("Scan failed: "+error.message);
   } finally {
-
     button.disabled = false;
   }
 }
@@ -1224,53 +927,39 @@ async function runScan() {
 /* STARTUP */
 
 async function initialise() {
-
   try {
-
     await openDatabase();
-
     await loadLibrary();
-
     await loadChannelSettings();
 
     setStatus(
-      "Ready. " + library.length +
-      " saved videos loaded. You can scan another channel."
+      "Ready. "+library.length+
+      " saved videos loaded. You can scan a channel."
     );
-
-  } catch (error) {
-
+  } catch(error) {
     console.error(error);
-
-    setStatus(
-      "Could not open the saved library: " + error.message
-    );
+    setStatus("Could not open the saved library: "+error.message);
   }
 }
 
 /* EVENT HANDLERS */
 
-$("scanButton").addEventListener("click", runScan);
+$("scanButton").addEventListener("click",runScan);
+$("seriesFilter").addEventListener("change",renderResults);
+$("searchInput").addEventListener("input",renderResults);
 
-$("seriesFilter").addEventListener(
-  "change",
-  renderResults
-);
+$("handle").addEventListener("change",async()=>{
+  await loadChannelSettings();
+});
 
-$("searchInput").addEventListener(
-  "input",
-  renderResults
-);
-
-$("handle").addEventListener(
-  "change",
-  loadChannelSettings
-);
+$("seriesNames").addEventListener("change",()=>{
+  // The names are saved to the channel record the next time it is scanned.
+  setStatus("Series names changed. They will be saved with the next channel scan.");
+});
 
 initialise();
 
 })();
 </script>
-
 </body>
 </html>
