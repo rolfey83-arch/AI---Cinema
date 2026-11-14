@@ -11,7 +11,7 @@
   --bg:#101116; --panel:#1b1d25; --border:#303440;
   --text:#f1f2f5; --muted:#a7adba;
   --accent:#a78bfa; --accent-hover:#8b6cf0;
-  --success:#70d6a0;
+  --success:#70d6a0; --danger:#ef8585;
 }
 * {box-sizing:border-box}
 body {
@@ -42,12 +42,21 @@ button {
 }
 button:hover {background:var(--accent-hover);color:white}
 button:disabled {opacity:.5;cursor:wait}
+button.remove-button {
+  margin:0;padding:9px 13px;background:#482d35;
+  color:#ffd9dc;font-size:13px;
+}
+button.remove-button:hover {background:#713b46;color:white}
 #status {margin-top:18px;color:var(--success);overflow-wrap:anywhere}
+.library-toolbar {
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;padding:18px;margin:18px 0;
+}
 .filters {
   display:grid;grid-template-columns:minmax(180px,.8fr) minmax(240px,1.5fr);
-  gap:14px;align-items:end;margin:18px 0;
+  gap:14px;align-items:end;
 }
-.filters label {margin-top:0}
+.filters label {margin:0 0 7px}
 .summary {color:var(--muted);font-size:14px;margin:8px 0 18px}
 .episode {
   display:flex;gap:16px;align-items:flex-start;
@@ -64,32 +73,42 @@ button:disabled {opacity:.5;cursor:wait}
 .empty {color:var(--muted);padding:18px 0}
 .library-info {
   background:#151720;border:1px solid var(--border);border-radius:8px;
-  padding:14px;margin-bottom:20px;color:var(--muted);font-size:14px;
+  padding:14px;margin-bottom:16px;color:var(--muted);font-size:14px;
 }
-.discovery-panel {
+.discovery-panel,.manage-panel {
   background:#191722;border:1px solid #51456f;
   border-radius:10px;padding:18px;margin:18px 0 24px;
 }
-.discovery-panel>p {color:var(--muted);font-size:14px;margin-top:5px}
-.discovery-card {
+.discovery-panel>p,.manage-panel>p {
+  color:var(--muted);font-size:14px;margin-top:5px;
+}
+.discovery-card,.managed-series-card {
   display:flex;justify-content:space-between;align-items:center;
   gap:15px;padding:14px 0;border-top:1px solid var(--border);
 }
-.discovery-details {min-width:0}
-.discovery-details strong {display:block;overflow-wrap:anywhere}
-.discovery-details small {margin-top:3px}
+.discovery-details,.managed-series-details {min-width:0}
+.discovery-details strong,.managed-series-details strong {
+  display:block;overflow-wrap:anywhere;
+}
+.discovery-details small,.managed-series-details small {margin-top:3px}
 .discovery-card button {
   flex-shrink:0;margin:0;padding:10px 15px;font-size:14px;
 }
-.discovery-empty {color:var(--muted);font-size:14px;padding:12px 0 3px}
+.discovery-empty,.manage-empty {
+  color:var(--muted);font-size:14px;padding:12px 0 3px;
+}
+.managed-series-card button {flex-shrink:0}
+.toolbar-heading {
+  margin:0 0 13px;font-size:16px;color:var(--muted);
+}
 @media(max-width:600px) {
   body {padding:20px 12px}
   .panel {padding:16px}
   .filters {grid-template-columns:1fr}
   .episode {gap:10px}
   .episode img {width:115px}
-  .discovery-card {align-items:flex-start}
-  .discovery-card button {padding:9px 11px}
+  .discovery-card,.managed-series-card {align-items:flex-start}
+  .discovery-card button,.managed-series-card button {padding:9px 11px}
 }
 </style>
 </head>
@@ -126,6 +145,21 @@ button:disabled {opacity:.5;cursor:wait}
   <h2>Saved series library</h2>
   <div class="library-info" id="libraryInfo">Loading saved library...</div>
 
+  <!-- SEARCH AND FILTERS NOW APPEAR BEFORE THE VIDEO LIST -->
+  <div class="library-toolbar">
+    <p class="toolbar-heading">Find something in your library</p>
+    <div class="filters">
+      <div>
+        <label for="seriesFilter">Filter by series</label>
+        <select id="seriesFilter" disabled><option value="all">All series</option></select>
+      </div>
+      <div>
+        <label for="searchInput">Search titles and descriptions</label>
+        <input id="searchInput" type="search" placeholder="Search any series, episode, character or keyword..." disabled>
+      </div>
+    </div>
+  </div>
+
   <section class="discovery-panel">
     <h3>Discovered series</h3>
     <p>AI Cinema looks for repeated phrases in unclassified video titles. If it finds a likely series, you can add it with one click.</p>
@@ -134,16 +168,13 @@ button:disabled {opacity:.5;cursor:wait}
     </div>
   </section>
 
-  <div class="filters">
-    <div>
-      <label for="seriesFilter">Series</label>
-      <select id="seriesFilter" disabled><option value="all">All series</option></select>
+  <section class="manage-panel">
+    <h3>Manage saved series</h3>
+    <p>Remove a series from the currently selected channel. Its videos will be returned to Unclassified, not deleted from your library.</p>
+    <div id="managedSeries">
+      <div class="manage-empty">Load a previously scanned channel to manage its series.</div>
     </div>
-    <div>
-      <label for="searchInput">Search titles and descriptions</label>
-      <input id="searchInput" type="search" placeholder="Search any series, episode, character or keyword..." disabled>
-    </div>
-  </div>
+  </section>
 
   <p id="librarySummary" class="summary">Your saved library will appear here.</p>
   <h2 id="resultHeading">Saved series library</h2>
@@ -226,6 +257,7 @@ async function loadLibrary() {
   renderResults();
   updateLibraryInfo();
   renderDiscoveredSeries();
+  renderManagedSeries();
 }
 
 function updateLibraryInfo() {
@@ -249,6 +281,7 @@ async function loadChannelSettings() {
 
   if (!handle) {
     renderDiscoveredSeries();
+    renderManagedSeries();
     return;
   }
 
@@ -264,6 +297,7 @@ async function loadChannelSettings() {
       setStatus("Loaded saved settings for "+saved.title+".");
     }
     renderDiscoveredSeries();
+    renderManagedSeries();
   } catch(error) {
     console.error("Could not load channel settings:",error);
   }
@@ -513,7 +547,6 @@ function buildDiscoveryCandidates() {
   let found = [...candidates.values()]
     .filter(candidate=>candidate.videoIds.size>=2);
 
-  // Prefer a longer phrase when it matches exactly the same videos.
   found = found.filter(candidate=>{
     return !found.some(other=>{
       if (other.phrase===candidate.phrase) return false;
@@ -638,6 +671,129 @@ async function addDiscoveredSeries(candidate) {
   } catch(error) {
     console.error(error);
     setStatus("Could not add series: "+error.message);
+  }
+}
+
+/* MANAGE SAVED SERIES */
+
+async function renderManagedSeries() {
+  const container = $("managedSeries");
+  container.replaceChildren();
+
+  if (!activeChannelId) {
+    container.innerHTML =
+      '<div class="manage-empty">Enter the handle of a channel you have already scanned to manage its series.</div>';
+    return;
+  }
+
+  const channels = await getAllRecords("channels");
+  const channel = channels.find(item=>item.id===activeChannelId);
+
+  if (!channel) {
+    container.innerHTML =
+      '<div class="manage-empty">No saved channel settings were found.</div>';
+    return;
+  }
+
+  const names = new Set(
+    (Array.isArray(channel.seriesNames) ? channel.seriesNames : [])
+      .filter(name=>name && name!=="Unclassified")
+  );
+
+  library
+    .filter(video=>video.channelId===activeChannelId &&
+      video.series && video.series!=="Unclassified")
+    .forEach(video=>names.add(video.series));
+
+  const sortedNames = [...names].sort((a,b)=>a.localeCompare(b));
+
+  if (!sortedNames.length) {
+    container.innerHTML =
+      '<div class="manage-empty">There are no saved series for this channel yet.</div>';
+    return;
+  }
+
+  for (const name of sortedNames) {
+    const count = library.filter(video=>
+      video.channelId===activeChannelId && video.series===name
+    ).length;
+
+    const card = document.createElement("div");
+    card.className = "managed-series-card";
+
+    const details = document.createElement("div");
+    details.className = "managed-series-details";
+
+    const title = document.createElement("strong");
+    title.textContent = name;
+
+    const info = document.createElement("small");
+    info.textContent = count+" videos currently classified";
+
+    details.append(title,info);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "remove-button";
+    button.textContent = "Remove series";
+    button.addEventListener("click",()=>removeSeries(name));
+
+    card.append(details,button);
+    container.appendChild(card);
+  }
+}
+
+async function removeSeries(seriesName) {
+  if (!db || !activeChannelId) return;
+
+  const matchingVideos = library.filter(video=>
+    video.channelId===activeChannelId && video.series===seriesName
+  );
+
+  const message = matchingVideos.length
+    ? 'Remove "'+seriesName+'" from '+activeChannelTitle+'?\n\n'+
+      matchingVideos.length+' video(s) will be returned to Unclassified.\n\n'+
+      'The videos themselves will NOT be deleted.'
+    : 'Remove "'+seriesName+'" from the saved series names for this channel?';
+
+  if (!window.confirm(message)) return;
+
+  try {
+    setStatus("Removing "+seriesName+"...");
+
+    const channels = await getAllRecords("channels");
+    const channel = channels.find(item=>item.id===activeChannelId);
+
+    if (!channel)
+      throw new Error("The saved channel record could not be found.");
+
+    const updatedVideos = matchingVideos.map(video=>({
+      ...video,
+      series:"Unclassified"
+    }));
+
+    channel.seriesNames = (Array.isArray(channel.seriesNames)
+      ? channel.seriesNames
+      : []
+    ).filter(name=>name.toLowerCase()!==seriesName.toLowerCase());
+
+    await saveRecords(updatedVideos,channel);
+
+    if ($("seriesFilter").value===seriesName)
+      $("seriesFilter").value = "all";
+
+    $("seriesNames").value = channel.seriesNames.join(", ");
+
+    await loadLibrary();
+
+    setStatus(
+      'Removed "'+seriesName+'". '+matchingVideos.length+
+      ' video(s) are now Unclassified. Your videos remain safely in the library.'
+    );
+
+  } catch(error) {
+    console.error(error);
+    setStatus("Could not remove series: "+error.message);
   }
 }
 
@@ -953,7 +1109,6 @@ $("handle").addEventListener("change",async()=>{
 });
 
 $("seriesNames").addEventListener("change",()=>{
-  // The names are saved to the channel record the next time it is scanned.
   setStatus("Series names changed. They will be saved with the next channel scan.");
 });
 
