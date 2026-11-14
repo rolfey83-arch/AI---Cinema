@@ -175,6 +175,16 @@ button:disabled {
   padding: 18px 0;
 }
 
+.library-info {
+  background: #151720;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 @media (max-width: 600px) {
   body { padding: 20px 12px; }
   .panel { padding: 16px; }
@@ -208,7 +218,7 @@ button:disabled {
     placeholder="Enter your YouTube API key"
   >
   <small>
-    Your key is entered in this browser session and is not
+    Your API key is entered in this browser session and is not
     saved by this page.
   </small>
 
@@ -226,6 +236,7 @@ button:disabled {
     id="playlists"
     placeholder="Paste playlist URLs, separated by commas"
   >
+
   <small>
     Leave blank to scan channel uploads automatically.
     Additional playlists are included in the same library.
@@ -238,24 +249,29 @@ button:disabled {
     value="Noctari, Quantum 13, The Wizard of Oz"
     placeholder="Series names, separated by commas"
   >
+
   <small>
-    Add series names as they appear in video titles or descriptions.
-    New names can be added whenever you introduce another series.
+    Enter the series names belonging to this channel.
+    These settings are remembered separately for each channel.
   </small>
 
   <button id="scanButton" type="button">
-    Scan channel and build library
+    Scan channel and add to saved library
   </button>
 
   <p id="status" role="status" aria-live="polite">
-    Ready. Enter your API key and start a scan.
+    Opening saved library...
   </p>
 
 </section>
 
 <section>
 
-  <h2 id="resultHeading">Discovery results</h2>
+  <h2>Saved series library</h2>
+
+  <div class="library-info" id="libraryInfo">
+    Loading saved library...
+  </div>
 
   <div class="filters">
 
@@ -279,7 +295,7 @@ button:disabled {
   </div>
 
   <p id="librarySummary" class="summary">
-    Scan the channel to build your searchable video library.
+    Your saved library will appear here.
   </p>
 
   <div id="results"></div>
@@ -290,6 +306,7 @@ button:disabled {
   Series recognition uses the names supplied in Discovery settings.
   Unrecognised videos are retained under Unclassified.
   Episode numbering and Shorts classification are estimates.
+  Your saved library is stored in this browser on this device.
 </p>
 
 </main>
@@ -299,12 +316,15 @@ button:disabled {
 "use strict";
 
 const API = "https://www.googleapis.com/youtube/v3";
-const MAX_UPLOAD_PAGES = 20;
 const SHORT_CUTOFF_DATE = new Date("2024-10-15T00:00:00Z");
+
+const DB_NAME = "AICinemaLibrary";
+const DB_VERSION = 1;
 
 const $ = id => document.getElementById(id);
 
 let library = [];
+let db = null;
 
 /* STATUS */
 
@@ -312,9 +332,151 @@ function setStatus(message) {
   $("status").textContent = message;
 }
 
+/* DATABASE */
+
+function openDatabase() {
+
+  return new Promise((resolve, reject) => {
+
+    if (!window.indexedDB) {
+      reject(new Error("This browser does not support IndexedDB."));
+      return;
+    }
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = event => {
+
+      const database = event.target.result;
+
+      if (!database.objectStoreNames.contains("videos")) {
+        database.createObjectStore("videos", { keyPath: "id" });
+      }
+
+      if (!database.objectStoreNames.contains("channels")) {
+        database.createObjectStore("channels", { keyPath: "id" });
+      }
+    };
+
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+
+    request.onerror = () => {
+      reject(request.error || new Error("Could not open the library database."));
+    };
+  });
+}
+
+function getAllRecords(storeName) {
+
+  return new Promise((resolve, reject) => {
+
+    const transaction = db.transaction(storeName, "readonly");
+    const request = transaction.objectStore(storeName).getAll();
+
+    request.onsuccess = () => resolve(request.result || []);
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function saveRecords(videos, channelRecord) {
+
+  return new Promise((resolve, reject) => {
+
+    const transaction = db.transaction(
+      ["videos", "channels"],
+      "readwrite"
+    );
+
+    const videoStore = transaction.objectStore("videos");
+    const channelStore = transaction.objectStore("channels");
+
+    for (const video of videos) {
+      videoStore.put(video);
+    }
+
+    channelStore.put(channelRecord);
+
+    transaction.oncomplete = () => resolve();
+
+    transaction.onerror = () => {
+      reject(transaction.error || new Error("Could not save library."));
+    };
+
+    transaction.onabort = () => {
+      reject(transaction.error || new Error("Library save was cancelled."));
+    };
+  });
+}
+
+async function loadLibrary() {
+
+  library = await getAllRecords("videos");
+
+  refreshSeriesOptions();
+  renderResults();
+  updateLibraryInfo();
+}
+
+function updateLibraryInfo() {
+
+  const seriesCount = new Set(
+    library.map(video => video.series)
+  ).size;
+
+  const channelCount = new Set(
+    library.map(video => video.channelId)
+  ).size;
+
+  $("libraryInfo").textContent =
+    library.length + " saved videos · " +
+    seriesCount + " series/categories · " +
+    channelCount + " channels";
+}
+
+/* CHANNEL SETTINGS */
+
+function cleanHandle(value) {
+  return value.trim().replace(/^@/, "").toLowerCase();
+}
+
+async function loadChannelSettings() {
+
+  if (!db) return;
+
+  const handle = cleanHandle($("handle").value);
+
+  if (!handle) return;
+
+  try {
+
+    const channels = await getAllRecords("channels");
+
+    const saved = channels.find(channel =>
+      cleanHandle(channel.handle) === handle
+    );
+
+    if (saved && Array.isArray(saved.seriesNames)) {
+
+      $("seriesNames").value = saved.seriesNames.join(", ");
+
+      setStatus(
+        "Loaded saved settings for " + saved.title + "."
+      );
+    }
+
+  } catch (error) {
+    console.error("Could not load channel settings:", error);
+  }
+}
+
 /* PLAYLIST URL */
 
 function getPlaylistId(value) {
+
   try {
     const url = new URL(value.trim());
     return url.searchParams.get("list") || "";
@@ -330,9 +492,11 @@ async function apiRequest(endpoint, params, key) {
   const url = new URL(API + "/" + endpoint);
 
   Object.entries({...params, key}).forEach(([name, value]) => {
+
     if (value !== undefined && value !== "") {
       url.searchParams.set(name, value);
     }
+
   });
 
   const response = await fetch(url);
@@ -359,11 +523,11 @@ async function apiRequest(endpoint, params, key) {
 
 async function findChannel(handle, key) {
 
-  const cleanHandle = handle.trim().replace(/^@/, "");
+  const clean = handle.trim().replace(/^@/, "");
 
   const data = await apiRequest("channels", {
     part: "snippet,contentDetails",
-    forHandle: cleanHandle
+    forHandle: clean
   }, key);
 
   if (!data.items?.length) {
@@ -398,9 +562,13 @@ async function scanPlaylist(playlistId, key, progressLabel) {
       if (!videoId) continue;
 
       videos.push({
+
         id: videoId,
+
         title: item.snippet?.title || "Untitled",
+
         description: item.snippet?.description || "",
+
         date:
           item.contentDetails?.videoPublishedAt ||
           item.snippet?.publishedAt || ""
@@ -425,7 +593,7 @@ function getSeriesNames() {
   return [...new Set(
     $("seriesNames").value
       .split(",")
-      .map(s => s.trim())
+      .map(name => name.trim())
       .filter(Boolean)
   )].sort((a, b) => b.length - a.length);
 
@@ -435,8 +603,6 @@ function identifySeries(video, names) {
 
   const title = video.title.toLocaleLowerCase();
   const description = video.description.toLocaleLowerCase();
-
-  // Title matches take priority over description matches.
 
   const titleMatch = names.find(name =>
     title.includes(name.toLocaleLowerCase())
@@ -521,7 +687,7 @@ function formatDuration(seconds) {
   return minutes + ":" + String(secs).padStart(2, "0");
 }
 
-/* RETRIEVE VIDEO DESCRIPTIONS AND DURATIONS */
+/* VIDEO DETAILS */
 
 async function addVideoDetails(videos, key) {
 
@@ -533,7 +699,7 @@ async function addVideoDetails(videos, key) {
 
     const data = await apiRequest("videos", {
       part: "contentDetails,snippet",
-      id: batch.map(v => v.id).join(",")
+      id: batch.map(video => video.id).join(",")
     }, key);
 
     for (const item of data.items || []) {
@@ -562,8 +728,7 @@ async function addVideoDetails(videos, key) {
 
     return {
       ...video,
-      description:
-        details.description || video.description || "",
+      description: details.description || video.description || "",
       duration: details.duration ?? null
     };
 
@@ -663,11 +828,16 @@ function renderVideo(video, type) {
     ? " · " + new Date(video.date).toLocaleDateString()
     : "";
 
+  const channelText = video.channelTitle
+    ? " · Channel: " + video.channelTitle
+    : "";
+
   meta.textContent =
     video.series + " · " +
     label + " · " +
     formatDuration(video.duration) +
-    dateText;
+    dateText +
+    channelText;
 
   details.append(link, meta);
 
@@ -691,12 +861,11 @@ function renderVideo(video, type) {
   return card;
 }
 
-/* BUILD SERIES DROPDOWN */
+/* SERIES DROPDOWN */
 
 function refreshSeriesOptions() {
 
   const select = $("seriesFilter");
-
   const current = select.value || "all";
 
   const names = [...new Set(
@@ -722,12 +891,9 @@ function refreshSeriesOptions() {
     select.appendChild(option);
   }
 
-  select.value = names.includes(current)
-    ? current
-    : "all";
+  select.value = names.includes(current) ? current : "all";
 
   select.disabled = library.length === 0;
-
   $("searchInput").disabled = library.length === 0;
 }
 
@@ -744,7 +910,11 @@ function renderResults() {
     results.className = "empty";
 
     results.textContent =
-      "Scan the channel to build your searchable video library.";
+      "Your saved library is empty. Scan a channel to get started.";
+
+    $("librarySummary").textContent = "No saved videos yet.";
+
+    $("resultHeading").textContent = "Saved series library";
 
     return;
   }
@@ -764,7 +934,8 @@ function renderResults() {
       !query ||
       video.title.toLocaleLowerCase().includes(query) ||
       video.description.toLocaleLowerCase().includes(query) ||
-      video.series.toLocaleLowerCase().includes(query);
+      video.series.toLocaleLowerCase().includes(query) ||
+      (video.channelTitle || "").toLocaleLowerCase().includes(query);
 
     return seriesMatch && searchMatch;
 
@@ -773,8 +944,8 @@ function renderResults() {
   $("librarySummary").textContent =
     "Showing " + filtered.length +
     " of " + library.length +
-    " videos · " +
-    new Set(library.map(v => v.series)).size +
+    " saved videos · " +
+    new Set(library.map(video => video.series)).size +
     " series/categories found.";
 
   if (!filtered.length) {
@@ -785,7 +956,7 @@ function renderResults() {
       "No videos match those filters. Try another search or choose All series.";
 
     $("resultHeading").textContent =
-      "Discovery results (0)";
+      "Saved series library (0)";
 
     return;
   }
@@ -803,7 +974,7 @@ function renderResults() {
   for (const group of groups) {
 
     const videos = sortVideos(
-      filtered.filter(v => classifyVideo(v) === group.key)
+      filtered.filter(video => classifyVideo(video) === group.key)
     );
 
     if (!videos.length) continue;
@@ -823,25 +994,75 @@ function renderResults() {
   }
 
   $("resultHeading").textContent =
-    "Discovery results (" + count + ")";
+    "Saved series library (" + count + ")";
 }
 
-/* RECLASSIFY WITHOUT RESCANNING */
+/* SAVE A CHANNEL SCAN */
 
-function reclassifyLibrary() {
+async function addScanToLibrary(channel, videos, handle, names) {
 
-  if (!library.length) return;
+  const existingVideos = await getAllRecords("videos");
+  const existingChannels = await getAllRecords("channels");
 
-  const names = getSeriesNames();
+  const existingById = new Map(
+    existingVideos.map(video => [video.id, video])
+  );
 
-  library = library.map(video => ({
-    ...video,
-    series: identifySeries(video, names)
-  }));
+  const existingChannel = existingChannels.find(
+    item => item.id === channel.id
+  );
 
-  refreshSeriesOptions();
+  const now = new Date().toISOString();
 
-  renderResults();
+  let added = 0;
+  let updated = 0;
+
+  const records = videos.map(video => {
+
+    const previous = existingById.get(video.id);
+
+    if (previous) {
+      updated++;
+    } else {
+      added++;
+    }
+
+    return {
+
+      ...previous,
+      ...video,
+
+      series: video.series,
+
+      channelId: channel.id,
+      channelTitle: channel.snippet?.title || "Unknown channel",
+      channelHandle: handle,
+
+      firstAdded: previous?.firstAdded || now,
+      lastScanned: now
+    };
+  });
+
+  const channelRecord = {
+
+    id: channel.id,
+
+    title: channel.snippet?.title || "Unknown channel",
+
+    handle: handle,
+
+    seriesNames: names,
+
+    firstAdded: existingChannel?.firstAdded || now,
+
+    lastScanned: now,
+
+    videoCount: videos.length
+  };
+
+  await saveRecords(records, channelRecord);
+
+  return { added, updated };
 }
 
 /* MAIN SCAN */
@@ -849,9 +1070,7 @@ function reclassifyLibrary() {
 async function runScan() {
 
   const key = $("apiKey").value.trim();
-
   const handle = $("handle").value.trim();
-
   const button = $("scanButton");
 
   if (!key) {
@@ -872,13 +1091,6 @@ async function runScan() {
 
   button.disabled = true;
 
-  $("results").replaceChildren();
-
-  library = [];
-
-  $("seriesFilter").disabled = true;
-  $("searchInput").disabled = true;
-
   try {
 
     setStatus("Finding the creator's channel...");
@@ -892,7 +1104,9 @@ async function runScan() {
       throw new Error("Could not find the channel's uploads playlist.");
     }
 
-    setStatus("Scanning channel uploads...");
+    setStatus(
+      "Scanning " + channel.snippet.title + "..."
+    );
 
     const uploads = await scanPlaylist(
       uploadsId,
@@ -925,7 +1139,7 @@ async function runScan() {
       allVideos.push(...extra);
     }
 
-    /* REMOVE DUPLICATES */
+    /* REMOVE DUPLICATES WITHIN THIS SCAN */
 
     const unique = new Map();
 
@@ -942,12 +1156,10 @@ async function runScan() {
 
       setStatus("The scan completed, but no videos were found.");
 
-      renderResults();
-
       return;
     }
 
-    /* GET ALL VIDEO DETAILS */
+    /* GET VIDEO DETAILS */
 
     setStatus(
       "Retrieving descriptions and durations for " +
@@ -960,34 +1172,41 @@ async function runScan() {
 
     const names = getSeriesNames();
 
-    library = detailed.map(video => ({
+    const classified = detailed.map(video => ({
       ...video,
       series: identifySeries(video, names)
     }));
 
-    /* DISPLAY ALL SERIES BY DEFAULT */
+    /* SAVE AUTOMATICALLY */
 
-    refreshSeriesOptions();
+    setStatus("Saving videos into your permanent library...");
+
+    const result = await addScanToLibrary(
+      channel,
+      classified,
+      handle,
+      names
+    );
+
+    /* RELOAD THE COMPLETE SAVED LIBRARY */
+
+    await loadLibrary();
 
     $("seriesFilter").value = "all";
-
     $("searchInput").value = "";
 
     renderResults();
 
-    const seriesCount =
-      new Set(library.map(v => v.series)).size;
-
-    const unclassified =
-      library.filter(v => v.series === "Unclassified").length;
+    const unclassified = classified.filter(
+      video => video.series === "Unclassified"
+    ).length;
 
     setStatus(
-      "Scan complete. " +
-      library.length + " unique videos loaded from " +
-      uploads.length + " channel uploads and " +
-      playlistIds.length + " additional playlists. " +
-      seriesCount + " series/categories found; " +
-      unclassified + " unclassified."
+      "Scan and save complete! " +
+      result.added + " new videos added; " +
+      result.updated + " existing videos updated. " +
+      unclassified + " videos unclassified. " +
+      "Your library now contains " + library.length + " videos."
     );
 
   } catch (error) {
@@ -999,6 +1218,33 @@ async function runScan() {
   } finally {
 
     button.disabled = false;
+  }
+}
+
+/* STARTUP */
+
+async function initialise() {
+
+  try {
+
+    await openDatabase();
+
+    await loadLibrary();
+
+    await loadChannelSettings();
+
+    setStatus(
+      "Ready. " + library.length +
+      " saved videos loaded. You can scan another channel."
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    setStatus(
+      "Could not open the saved library: " + error.message
+    );
   }
 }
 
@@ -1016,10 +1262,12 @@ $("searchInput").addEventListener(
   renderResults
 );
 
-$("seriesNames").addEventListener(
+$("handle").addEventListener(
   "change",
-  reclassifyLibrary
+  loadChannelSettings
 );
+
+initialise();
 
 })();
 </script>
