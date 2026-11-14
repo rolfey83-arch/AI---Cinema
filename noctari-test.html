@@ -90,7 +90,6 @@ input:focus,select:focus {
   box-shadow:0 0 0 3px #a78bfa22;
 }
 input::placeholder {color:#777c94}
-small {display:block;margin-top:6px;font-size:12px}
 button {
   margin-top:20px;padding:12px 19px;border:0;
   border-radius:9px;
@@ -105,6 +104,16 @@ button.remove-button {
   background:#482b3c;color:#ffdce7;font-size:12px;
 }
 button.remove-button:hover {background:#713b52;color:white}
+button.add-result-button {
+  display:inline-flex;align-items:center;gap:6px;
+  margin:11px 0 0;padding:8px 12px;
+  border:1px solid #62518d;border-radius:8px;
+  background:#30264b;color:#d9ccff;
+  font-size:12px;font-weight:700;
+}
+button.add-result-button:hover {
+  background:#49376e;color:white;
+}
 #status {
   margin:17px 0 0;padding:11px 13px;
   border:1px solid #285b4a;border-radius:9px;
@@ -264,13 +273,9 @@ button.remove-button:hover {background:#713b52;color:white}
   <label for="handle">YouTube channel handle</label>
   <input type="text" id="handle" value="@blackeyemedia70" placeholder="@channelhandle">
 
-  <label for="playlists">Additional playlist URLs (optional)</label>
-  <input type="text" id="playlists" placeholder="Paste playlist URLs, separated by commas">
-  <small>Leave blank to scan channel uploads automatically. Additional playlists are included in the same library.</small>
-
   <button id="scanButton" type="button">✦ Scan channel and update library</button>
 
-  <details class="api-panel">
+  <details class="api-panel" id="api-panel">
     <summary>
       <span>API &amp; Integration Settings</span>
       <span class="api-status"><i id="apiDot" class="api-dot"></i><span id="apiStatusText">API key required</span></span>
@@ -483,17 +488,6 @@ async function loadChannelSettings() {
   }
 }
 
-/* PLAYLIST URL */
-
-function getPlaylistId(value) {
-  try {
-    const url = new URL(value.trim());
-    return url.searchParams.get("list") || "";
-  } catch {
-    return "";
-  }
-}
-
 /* YOUTUBE API */
 
 async function apiRequest(endpoint,params,key) {
@@ -525,7 +519,7 @@ async function findChannel(handle,key) {
   return data.items[0];
 }
 
-/* SCAN PLAYLIST */
+/* SCAN CHANNEL UPLOADS */
 
 async function scanPlaylist(playlistId,key,progressLabel) {
   const videos = [];
@@ -556,8 +550,8 @@ async function scanPlaylist(playlistId,key,progressLabel) {
 }
 
 /* SERIES RECOGNITION
-   Saved series names are now managed internally.
-   Adding a discovered series automatically teaches future scans.
+   Saved series names are managed internally.
+   Adding a series automatically teaches future scans.
 */
 
 async function getSeriesNames(channelId) {
@@ -852,6 +846,134 @@ async function addDiscoveredSeries(candidate) {
   }
 }
 
+/* ADD A SERIES FROM A SEARCH RESULT
+   The selected video is the starting point. Other unclassified videos
+   from the same channel are matched using the series name in their
+   title or description. Videos from other channels are never included.
+*/
+
+async function addSearchResultToSeries(selectedVideo) {
+  if (!db) {
+    setStatus("The library is not ready yet.");
+    return;
+  }
+
+  if (!selectedVideo.channelId) {
+    setStatus("This video has no saved channel association, so it cannot be assigned to a channel series.");
+    return;
+  }
+
+  if (selectedVideo.series!=="Unclassified") {
+    setStatus("This video is already assigned to a series.");
+    return;
+  }
+
+  const enteredName = window.prompt(
+    "Enter the name of the series for this video:",
+    ""
+  );
+
+  if (enteredName===null) return;
+
+  const seriesName = enteredName.trim();
+
+  if (!seriesName) {
+    setStatus("Please enter a series name.");
+    return;
+  }
+
+  if (seriesName.toLowerCase()==="unclassified") {
+    setStatus('"Unclassified" is reserved for videos that have not yet been assigned.');
+    return;
+  }
+
+  try {
+    const channel = await getSavedChannel(selectedVideo.channelId);
+
+    if (!channel) {
+      setStatus("The saved channel record for this video could not be found. Scan the channel first.");
+      return;
+    }
+
+    const normalisedName = normaliseSearch(seriesName);
+
+    if (!normalisedName) {
+      setStatus("Please enter a series name containing letters or numbers.");
+      return;
+    }
+
+    const matchingVideos = library.filter(video=>{
+      if (video.channelId!==selectedVideo.channelId) return false;
+      if (video.series!=="Unclassified") return false;
+
+      const title = normaliseSearch(video.title);
+      const description = normaliseSearch(video.description);
+
+      return title.includes(normalisedName) ||
+             description.includes(normalisedName);
+    });
+
+    // Always include the selected search result, even if its title
+    // does not contain the series name entered by the user.
+    const selectedIsIncluded = matchingVideos.some(video=>video.id===selectedVideo.id);
+
+    if (!selectedIsIncluded)
+      matchingVideos.unshift(selectedVideo);
+
+    const otherCount = matchingVideos.length-1;
+
+    const confirmation =
+      'Add "'+seriesName+'" to '+matchingVideos.length+
+      ' video(s) from '+(channel.title || "this channel")+"?\n\n"+
+      (otherCount>0
+        ? otherCount+" other unclassified video(s) match the series name in their title or description.\n\n"
+        : "No other unclassified videos matched that name. The selected video will be added.\n\n"
+      )+
+      "Already classified videos and videos from other channels will not be changed.";
+
+    if (!window.confirm(confirmation)) return;
+
+    setStatus("Adding "+matchingVideos.length+" video(s) to "+seriesName+"...");
+
+    const names = Array.isArray(channel.seriesNames)
+      ? [...channel.seriesNames]
+      : [];
+
+    if (!names.some(name=>
+      normaliseSearch(name)===normalisedName
+    )) {
+      names.push(seriesName);
+    }
+
+    channel.seriesNames = names;
+    channel.lastScanned = channel.lastScanned || new Date().toISOString();
+
+    const records = matchingVideos.map(video=>({
+      ...video,
+      series:seriesName
+    }));
+
+    await saveRecords(records,channel);
+    await loadLibrary();
+
+    // Show the newly created series as a whole, rather than leaving
+    // the user looking at a search result that may hide other episodes.
+    $("seriesFilter").value = seriesName;
+    $("searchInput").value = "";
+    renderResults();
+
+    setStatus(
+      'Added "'+seriesName+'" successfully. '+
+      matchingVideos.length+" video(s) classified. "+
+      "Future scans will recognise this series automatically."
+    );
+
+  } catch(error) {
+    console.error(error);
+    setStatus("Could not add the series: "+error.message);
+  }
+}
+
 /* MANAGE SAVED SERIES */
 
 async function renderManagedSeries() {
@@ -1012,6 +1134,17 @@ function renderVideo(video,type) {
       ? video.description.slice(0,320).trimEnd()+"..."
       : video.description;
     details.appendChild(description);
+  }
+
+  // Only unclassified videos get this action. It is available wherever
+  // the video appears in the library, including filtered search results.
+  if (video.series==="Unclassified" && video.channelId) {
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "add-result-button";
+    addButton.textContent = "+ Add to series";
+    addButton.addEventListener("click",()=>addSearchResultToSeries(video));
+    details.appendChild(addButton);
   }
 
   card.append(image,details);
@@ -1205,10 +1338,9 @@ async function runScan() {
   const button = $("scanButton");
 
   if (!key) {
-    $("apiPanel")?.setAttribute("open","");
+    $("api-panel").setAttribute("open","");
     $("apiKey").focus();
     setStatus("Please enter your YouTube API key in API & Integration Settings.");
-    $("api-panel")?.setAttribute("open","");
     return;
   }
 
@@ -1232,28 +1364,10 @@ async function runScan() {
 
     setStatus("Scanning "+channel.snippet.title+"...");
 
-    const uploads = await scanPlaylist(uploadsId,key,"Channel uploads scanned");
-
-    const playlistInput = $("playlists").value.trim();
-    const playlistIds = playlistInput
-      ? [...new Set(playlistInput.split(",").map(getPlaylistId).filter(Boolean))]
-      : [];
-
-    const allVideos = [...uploads];
-
-    for (let i=0;i<playlistIds.length;i++) {
-      const extra = await scanPlaylist(
-        playlistIds[i],key,"Scanning additional playlist "+(i+1)
-      );
-      allVideos.push(...extra);
-    }
-
-    const unique = new Map();
-    for (const video of allVideos) {
-      if (!unique.has(video.id)) unique.set(video.id,video);
-    }
-
-    const videos = [...unique.values()];
+    // The channel uploads playlist is the single discovery source.
+    const videos = await scanPlaylist(
+      uploadsId,key,"Channel uploads scanned"
+    );
 
     if (!videos.length) {
       setStatus("The scan completed, but no videos were found.");
@@ -1263,7 +1377,7 @@ async function runScan() {
     setStatus("Retrieving descriptions and durations for "+videos.length+" videos...");
     const detailed = await addVideoDetails(videos,key);
 
-    /* Previously added series names are automatically reused */
+    // Previously added series names are automatically reused.
     const names = await getSeriesNames(channel.id);
 
     const classified = detailed.map(video=>({
