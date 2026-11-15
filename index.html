@@ -213,7 +213,7 @@ button.add-series-button {
   justify-content:center;
 }
 
-/* All player controls fade away together. */
+/* Player controls fade away together. */
 
 .player-header {
   position:absolute;
@@ -310,11 +310,37 @@ button.add-series-button {
 }
 .player-stage iframe {
   display:block;
+  position:relative;
+  z-index:1;
   width:100%;
   height:100%;
   border:0;
   background:#000;
 }
+
+/*
+  Transparent tap layer.
+
+  It appears only while the player controls are hidden.
+  The first tap reveals the controls. When controls are visible,
+  this layer disappears and YouTube receives normal interaction.
+*/
+
+.player-tap-layer {
+  display:none;
+  position:absolute;
+  inset:0;
+  z-index:2;
+  background:transparent;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.player-overlay.active:not(.controls-visible) .player-tap-layer {
+  display:block;
+}
+
 .player-message {
   display:none;
   width:100%;
@@ -581,6 +607,9 @@ button.add-series-button {
       allowfullscreen
       referrerpolicy="strict-origin-when-cross-origin">
     </iframe>
+
+    <div id="playerTapLayer" class="player-tap-layer"
+      aria-label="Tap to show player controls"></div>
   </div>
 
   <p id="playerMessage" class="player-message" aria-live="polite">
@@ -884,19 +913,21 @@ async function togglePlayerFullscreen() {
 }
 
 /*
-  Activity on the player overlay brings the controls back.
-  They fade again after the inactivity timeout.
+  The transparent tap layer sits above the YouTube iframe while
+  the AI Cinema controls are hidden.
 
-  Focus changes also show the controls, but focus alone does
-  not keep them visible indefinitely.
+  A tap on that layer reveals the controls. Once they are visible,
+  CSS removes the layer from the screen so taps go directly to
+  the YouTube player as normal.
 
-  Clicks and taps inside the YouTube iframe are handled by
-  YouTube and do not bubble up to this page.
+  We deliberately do not use swipe or pointer-movement gestures
+  to reveal the controls.
 */
 
-$("playerOverlay").addEventListener("pointermove",showPlayerControls);
-$("playerOverlay").addEventListener("pointerdown",showPlayerControls);
-$("playerOverlay").addEventListener("touchstart",showPlayerControls,{passive:true});
+$("playerTapLayer").addEventListener("click",()=>{
+  showPlayerControls();
+});
+
 $("playerOverlay").addEventListener("focusin",showPlayerControls);
 
 document.addEventListener("keydown",event=>{
