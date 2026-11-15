@@ -129,30 +129,6 @@ button.add-series-button {
   background:#14291f;color:var(--success);
   font-size:13px;overflow-wrap:anywhere;
 }
-.api-panel {
-  margin-top:14px;border:1px solid #34364e;
-  border-radius:10px;background:#121421;
-}
-.api-panel summary {
-  padding:13px 15px;cursor:pointer;list-style:none;
-  display:flex;justify-content:space-between;align-items:center;
-  gap:12px;font-size:14px;font-weight:650;
-}
-.api-panel summary::-webkit-details-marker {display:none}
-.api-panel summary::after {content:"+";font-size:21px;color:var(--accent)}
-.api-panel[open] summary::after {content:"−"}
-.api-panel summary:hover {color:var(--accent)}
-.api-content {padding:0 15px 15px}
-.api-content label:first-child {margin-top:8px}
-.api-status {
-  display:inline-flex;align-items:center;gap:7px;
-  color:var(--muted);font-size:12px;font-weight:500;
-}
-.api-dot {
-  width:8px;height:8px;border-radius:50%;
-  background:#777c94;display:inline-block;
-}
-.api-dot.ready {background:var(--success);box-shadow:0 0 9px #70d6a0aa}
 .library-info {
   display:flex;flex-wrap:wrap;gap:12px;
   background:#141727;border:1px solid var(--border);
@@ -212,9 +188,6 @@ button.add-series-button {
   flex-direction:column;
   justify-content:center;
 }
-
-/* Player controls fade away together. */
-
 .player-header {
   position:absolute;
   z-index:5;
@@ -234,7 +207,6 @@ button.add-series-button {
   box-shadow:none;
   pointer-events:none;
 }
-
 .player-heading {
   min-width:0;
   flex:1;
@@ -247,7 +219,6 @@ button.add-series-button {
   visibility:hidden;
   transition:opacity .35s ease,visibility .35s ease;
 }
-
 .player-heading strong {
   display:block;
   color:#f2f2fa;
@@ -258,7 +229,6 @@ button.add-series-button {
   display:block;
   margin-top:3px;
 }
-
 .player-actions {
   display:flex;
   gap:9px;
@@ -282,20 +252,17 @@ button.add-series-button {
   visibility:hidden;
   transition:opacity .35s ease,visibility .35s ease;
 }
-
 .player-overlay.controls-visible .player-heading,
 .player-overlay.controls-visible .player-fullscreen,
 .player-overlay.controls-visible .player-close {
   opacity:1;
   visibility:visible;
 }
-
 .player-close {
   opacity:0;
   visibility:hidden;
   transition:opacity .35s ease,visibility .35s ease;
 }
-
 .player-stage {
   width:100%;
   max-width:1250px;
@@ -317,15 +284,6 @@ button.add-series-button {
   border:0;
   background:#000;
 }
-
-/*
-  Transparent tap layer.
-
-  It appears only while the player controls are hidden.
-  The first tap reveals the controls. When controls are visible,
-  this layer disappears and YouTube receives normal interaction.
-*/
-
 .player-tap-layer {
   display:none;
   position:absolute;
@@ -336,11 +294,9 @@ button.add-series-button {
   touch-action:manipulation;
   -webkit-tap-highlight-color:transparent;
 }
-
 .player-overlay.active:not(.controls-visible) .player-tap-layer {
   display:block;
 }
-
 .player-message {
   display:none;
   width:100%;
@@ -351,7 +307,6 @@ button.add-series-button {
   text-align:center;
 }
 .player-message.visible {display:block}
-
 .player-overlay:fullscreen {
   padding:0;
   background:#000;
@@ -565,18 +520,6 @@ button.add-series-button {
 
   <button id="scanButton" type="button">✦ Scan channel and update library</button>
 
-  <details class="api-panel" id="api-panel">
-    <summary>
-      <span>API &amp; Integration Settings</span>
-      <span class="api-status"><i id="apiDot" class="api-dot"></i><span id="apiStatusText">API key required</span></span>
-    </summary>
-    <div class="api-content">
-      <label for="apiKey">YouTube Data API key</label>
-      <input type="password" id="apiKey" autocomplete="off" placeholder="Enter your YouTube API key">
-      <small>Your API key is saved locally in this browser. It is not written into the website code.</small>
-    </div>
-  </details>
-
   <p id="status" role="status" aria-live="polite">Opening saved library...</p>
 </section>
 
@@ -719,11 +662,18 @@ button.add-series-button {
 (() => {
 "use strict";
 
-const API = "https://www.googleapis.com/youtube/v3";
+/*
+  YOUTUBE API CONNECTION
+
+  All YouTube Data API requests now pass through the Cloudflare Worker.
+  The API key is held by Cloudflare as a Worker secret and is never
+  requested, stored or transmitted by this browser application.
+*/
+
+const API = "https://old-voice-c811.rolfey83.workers.dev";
 const SHORT_CUTOFF_DATE = new Date("2024-10-15T00:00:00Z");
 const DB_NAME = "AICinemaLibrary";
 const DB_VERSION = 1;
-const API_KEY_STORAGE = "AICinemaYouTubeApiKey";
 const PLAYER_CONTROLS_TIMEOUT = 3500;
 
 const $ = id => document.getElementById(id);
@@ -732,7 +682,6 @@ let db = null;
 let activeChannelId = null;
 let activeChannelTitle = "";
 let youtubeSearchResults = [];
-let apiKeySavedLocally = false;
 let lastPlayerFocus = null;
 let playerControlsTimer = null;
 
@@ -807,19 +756,7 @@ function openPlayer(video) {
   document.body.classList.add("player-open");
   overlay.classList.add("controls-visible");
 
-  /*
-    Load the YouTube iframe before requesting fullscreen.
-    This gives the browser the best chance of allowing autoplay
-    while the original user interaction is still active.
-  */
-
   iframe.src = playerUrl.toString();
-
-  /*
-    Request fullscreen directly from the user's episode-selection
-    action. Browsers may still refuse this request; if they do,
-    the player opens normally and the user can use Fullscreen.
-  */
 
   try {
     if (overlay.requestFullscreen) {
@@ -839,11 +776,6 @@ function openPlayer(video) {
     console.warn("Automatic fullscreen was not accepted:",error);
   }
 
-  /*
-    Focus the overlay rather than an individual button.
-    Focus itself will not prevent the controls from fading away.
-  */
-
   overlay.focus({preventScroll:true});
   schedulePlayerControlsHide();
 
@@ -856,12 +788,6 @@ function closePlayer() {
   if (!overlay.classList.contains("active")) return;
 
   clearTimeout(playerControlsTimer);
-
-  /*
-    Stop playback completely when closing the player.
-    Removing the iframe source also prevents background audio.
-  */
-
   $("youtubePlayer").src = "about:blank";
 
   overlay.classList.remove("active","controls-visible");
@@ -912,18 +838,6 @@ async function togglePlayerFullscreen() {
   }
 }
 
-/*
-  The transparent tap layer sits above the YouTube iframe while
-  the AI Cinema controls are hidden.
-
-  A tap on that layer reveals the controls. Once they are visible,
-  CSS removes the layer from the screen so taps go directly to
-  the YouTube player as normal.
-
-  We deliberately do not use swipe or pointer-movement gestures
-  to reveal the controls.
-*/
-
 $("playerTapLayer").addEventListener("click",()=>{
   showPlayerControls();
 });
@@ -958,72 +872,6 @@ document.addEventListener("fullscreenchange",()=>{
 
 $("closePlayerButton").addEventListener("click",closePlayer);
 $("fullscreenButton").addEventListener("click",togglePlayerFullscreen);
-
-/* API KEY STORAGE */
-
-function updateApiIndicator() {
-  const ready = Boolean($("apiKey").value.trim());
-
-  $("apiDot").classList.toggle("ready",ready);
-
-  if (!ready) {
-    $("apiStatusText").textContent = "API key required";
-  } else if (apiKeySavedLocally) {
-    $("apiStatusText").textContent = "Key saved locally";
-  } else {
-    $("apiStatusText").textContent = "Key entered for this session";
-  }
-}
-
-function loadSavedApiKey() {
-  try {
-    const savedKey = localStorage.getItem(API_KEY_STORAGE);
-
-    if (savedKey) {
-      $("apiKey").value = savedKey;
-      apiKeySavedLocally = true;
-    } else {
-      apiKeySavedLocally = false;
-    }
-  } catch (error) {
-    console.warn("Could not access locally saved API key:",error);
-    apiKeySavedLocally = false;
-  }
-
-  updateApiIndicator();
-}
-
-function saveApiKeyLocally() {
-  const key = $("apiKey").value.trim();
-
-  try {
-    if (key) {
-      localStorage.setItem(API_KEY_STORAGE,key);
-      apiKeySavedLocally = true;
-    } else {
-      localStorage.removeItem(API_KEY_STORAGE);
-      apiKeySavedLocally = false;
-    }
-  } catch (error) {
-    console.warn("Could not save API key locally:",error);
-    apiKeySavedLocally = false;
-  }
-
-  updateApiIndicator();
-}
-
-function getApiKey() {
-  const key = $("apiKey").value.trim();
-
-  if (!key) {
-    $("api-panel").setAttribute("open","");
-    $("apiKey").focus();
-    setStatus("Please enter your YouTube API key in API & Integration Settings.");
-    return null;
-  }
-
-  return key;
-}
 
 /* DATABASE — EXISTING DATABASE PRESERVED */
 
@@ -1160,31 +1008,79 @@ async function loadChannelSettings() {
   }
 }
 
-/* YOUTUBE API */
+/* YOUTUBE API — CLOUDFLARE WORKER PROXY */
+
+/*
+  The Worker adds the secret API key on the server side.
+  Do not add a key parameter here.
+
+  The Worker expects requests in this format:
+  https://old-voice-c811.rolfey83.workers.dev/youtube/v3/ENDPOINT
+*/
 
 async function apiRequest(endpoint,params,key) {
-  const url = new URL(API+"/"+endpoint);
+  const allowedEndpoints = new Set([
+    "channels",
+    "playlistItems",
+    "videos",
+    "search"
+  ]);
 
-  Object.entries({...params,key}).forEach(([name,value])=>{
-    if (value!==undefined && value!=="")
-      url.searchParams.set(name,value);
+  if (!allowedEndpoints.has(endpoint)) {
+    throw new Error("Unsupported YouTube API endpoint: "+endpoint);
+  }
+
+  const url = new URL(
+    "/youtube/v3/"+endpoint,
+    API
+  );
+
+  Object.entries(params || {}).forEach(([name,value])=>{
+    if (value!==undefined && value!==null && value!=="")
+      url.searchParams.set(name,String(value));
   });
 
-  const response = await fetch(url);
+  let response;
+
+  try {
+    response = await fetch(url.toString(),{
+      method:"GET",
+      headers:{
+        "Accept":"application/json"
+      }
+    });
+  } catch(error) {
+    throw new Error(
+      "Could not connect to the Cloudflare YouTube service. "+
+      "Check the Worker deployment and try again. "+error.message
+    );
+  }
 
   if (!response.ok) {
     let detail = "";
+
     try {
       const data = await response.json();
-      detail = data.error?.message || "";
+      detail = data.error?.message || data.message || "";
     } catch {}
 
     throw new Error(
-      "YouTube API HTTP "+response.status+(detail?": "+detail:"")
+      "YouTube service HTTP "+response.status+
+      (detail ? ": "+detail : "")
     );
   }
 
   return response.json();
+}
+
+/*
+  The existing functions expect a key check before starting an operation.
+  Return a harmless internal marker so those functions can keep their
+  existing flow without asking the user for a key.
+*/
+
+function getApiKey() {
+  return "cloudflare-worker";
 }
 
 async function findChannel(handle,key) {
@@ -2798,16 +2694,13 @@ async function runScan() {
 
 async function initialise() {
   try {
-    loadSavedApiKey();
-
     await openDatabase();
     await loadLibrary();
     await loadChannelSettings();
 
     setStatus(
       "Ready. "+library.length+
-      " saved videos loaded. Your library is intact."+
-      (apiKeySavedLocally ? " API key loaded from this browser." : "")
+      " saved videos loaded. Your library is intact. Connected through Cloudflare."
     );
   } catch(error) {
     console.error(error);
@@ -2826,7 +2719,6 @@ $("youtubeSearchInput").addEventListener("keydown",event=>{
 
 $("seriesFilter").addEventListener("change",renderResults);
 $("searchInput").addEventListener("input",renderResults);
-$("apiKey").addEventListener("input",saveApiKeyLocally);
 
 $("handle").addEventListener("change",async()=>{
   await loadChannelSettings();
