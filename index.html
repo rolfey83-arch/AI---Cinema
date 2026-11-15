@@ -1544,7 +1544,7 @@ async function addSearchResultToSeries(selectedVideo) {
 
   const enteredName = window.prompt(
     "Enter the name of the series for this video:",
-    ""
+    inferSeriesName(selectedVideo.title)
   );
 
   if (enteredName===null) return;
