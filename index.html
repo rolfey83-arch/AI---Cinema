@@ -1956,6 +1956,123 @@ function inferSeriesName(title) {
   return name;
 }
 
+/*
+  FIND A SERIES NAME FROM THE CREATOR'S UPLOADS
+
+  Instead of relying only on episode-number markers, this examines
+  recurring title phrases across the creator's uploads.
+
+  The selected video must contain the phrase, and the phrase must
+  appear in at least two distinct uploads.
+
+  Common filler words are excluded. Longer repeated phrases are
+  preferred when they occur across the same group of videos.
+*/
+
+function detectSeriesFromUploads(selectedVideo,uploads) {
+  const selectedWords = titleWords(selectedVideo.title || "");
+  const selectedNormalised = normaliseSearch(selectedVideo.title || "");
+
+  if (!selectedWords.length || !selectedNormalised) return null;
+
+  const candidates = new Map();
+
+  for (const upload of uploads) {
+    const words = titleWords(upload.title || "");
+    const phrases = new Set();
+
+    for (let length=1;length<=5;length++) {
+      for (let i=0;i<=words.length-length;i++) {
+        const group = words.slice(i,i+length);
+        const lowerGroup = group.map(word=>word.toLocaleLowerCase());
+
+        if (lowerGroup.some(word=>
+          DISCOVERY_STOP_WORDS.has(word)
+        )) continue;
+
+        if (length===1 && group[0].length<5) continue;
+
+        const phrase = lowerGroup.join(" ");
+        if (phrase.length<4) continue;
+
+        phrases.add(phrase);
+      }
+    }
+
+    for (const phrase of phrases) {
+      if (!candidates.has(phrase)) {
+        candidates.set(phrase,{
+          phrase,
+          videoIds:new Set(),
+          examples:[],
+          displayName:""
+        });
+      }
+
+      const candidate = candidates.get(phrase);
+      candidate.videoIds.add(upload.id);
+
+      if (candidate.examples.length<3)
+        candidate.examples.push(upload.title);
+
+      if (!candidate.displayName) {
+        const phraseWords = phrase.split(" ");
+        const originalWords = words.map(word=>word.toLocaleLowerCase());
+        const position = originalWords.findIndex((word,index)=>
+          phraseWords.every((part,offset)=>
+            originalWords[index+offset]===part
+          )
+        );
+
+        if (position>=0) {
+          candidate.displayName = words
+            .slice(position,position+phraseWords.length)
+            .join(" ");
+        }
+      }
+    }
+  }
+
+  let found = [...candidates.values()].filter(candidate=>
+    candidate.videoIds.size>=2 &&
+    selectedNormalised.includes(candidate.phrase)
+  );
+
+  /*
+    Remove shorter phrases when a longer phrase occurs in exactly
+    the same uploads. This avoids choosing "Noctari" when the
+    creator consistently uses a more descriptive repeated title.
+  */
+
+  found = found.filter(candidate=>{
+    return !found.some(other=>{
+      if (other.phrase===candidate.phrase) return false;
+      if (other.phrase.length<=candidate.phrase.length) return false;
+
+      const sameVideos =
+        [...candidate.videoIds].every(id=>other.videoIds.has(id));
+
+      return sameVideos && other.phrase.includes(candidate.phrase);
+    });
+  });
+
+  found.sort((a,b)=>
+    b.videoIds.size-a.videoIds.size ||
+    b.phrase.split(" ").length-a.phrase.split(" ").length ||
+    b.phrase.length-a.phrase.length
+  );
+
+  if (!found.length) return null;
+
+  const best = found[0];
+
+  return {
+    name:best.displayName || displaySeriesName(best.phrase),
+    count:best.videoIds.size,
+    examples:best.examples
+  };
+}
+
 /* ADD A WHOLE SERIES FROM A YOUTUBE SEARCH RESULT */
 
 async function addYoutubeSeries(video,button) {
@@ -1972,35 +2089,13 @@ async function addYoutubeSeries(video,button) {
     return;
   }
 
-  const suggestedName = inferSeriesName(video.title);
-
-  const seriesName = window.prompt(
-    "Series name detected from this video. You can adjust it if needed:",
-    suggestedName
-  );
-
-  if (seriesName===null) return;
-
-  const cleanName = seriesName.trim();
-  const normalisedName = normaliseSearch(cleanName);
-
-  if (!normalisedName) {
-    setStatus("A valid series name is required.");
-    return;
-  }
-
-  if (normalisedName==="unclassified") {
-    setStatus('"Unclassified" is reserved for videos that have not yet been assigned.');
-    return;
-  }
-
   button.disabled = true;
   button.textContent = "Searching channel...";
 
   try {
     setStatus(
       'Finding all uploads from "'+video.channelTitle+
-      '" to look for "'+cleanName+'"...'
+      '" so AI Cinema can identify the series...'
     );
 
     const channelData = await apiRequest("channels",{
@@ -2027,16 +2122,72 @@ async function addYoutubeSeries(video,button) {
       throw new Error("No public uploads were found for this creator.");
 
     setStatus(
-      "Checking "+uploads.length+
-      " channel uploads for matching episodes..."
+      "Found "+uploads.length+
+      " creator uploads. Retrieving titles and video details..."
     );
 
     const detailed = await addVideoDetails(uploads,key);
+
+    /*
+      First try to identify a repeated phrase from the creator's
+      actual uploads. Only fall back to the old title-based method
+      if no repeated phrase can be identified.
+    */
+
+    const detected = detectSeriesFromUploads(video,detailed);
+    const suggestedName = detected?.name || inferSeriesName(video.title);
+
+    const promptMessage = detected
+      ? "AI Cinema found a recurring title pattern across "+
+        detected.count+" creator uploads.\n\n"+
+        "Suggested series name (you can edit it):"
+      : "AI Cinema could not find a clear recurring title pattern.\n\n"+
+        "Please check or enter the series name:";
+
+    const seriesName = window.prompt(
+      promptMessage,
+      suggestedName
+    );
+
+    if (seriesName===null) {
+      button.disabled = false;
+      button.textContent = "✦ Add Series";
+      setStatus("Series import cancelled. Your library has not been changed.");
+      return;
+    }
+
+    const cleanName = seriesName.trim();
+    const normalisedName = normaliseSearch(cleanName);
+
+    if (!normalisedName) {
+      button.disabled = false;
+      button.textContent = "✦ Add Series";
+      setStatus("A valid series name is required.");
+      return;
+    }
+
+    if (normalisedName==="unclassified") {
+      button.disabled = false;
+      button.textContent = "✦ Add Series";
+      setStatus('"Unclassified" is reserved for videos that have not yet been assigned.');
+      return;
+    }
+
+    setStatus(
+      'Looking for uploads matching "'+cleanName+'"...'
+    );
+
     const phrase = normaliseSearch(cleanName);
 
     let matches = detailed.filter(item=>
       normaliseSearch(item.title).includes(phrase)
     );
+
+    /*
+      Always include the selected search result. This also protects
+      against small differences between the search result and the
+      creator's uploads playlist metadata.
+    */
 
     if (!matches.some(item=>item.id===video.id)) {
       matches.push({
@@ -2044,6 +2195,14 @@ async function addYoutubeSeries(video,button) {
         duration:video.duration ?? null
       });
     }
+
+    /*
+      Avoid duplicate video IDs in the import list.
+    */
+
+    matches = [...new Map(
+      matches.map(item=>[item.id,item])
+    ).values()];
 
     const existingById = new Map(
       library.map(item=>[item.id,item])
@@ -2062,6 +2221,10 @@ async function addYoutubeSeries(video,button) {
       'AI Cinema found '+matches.length+
       ' matching video(s) on '+(channel.snippet?.title || video.channelTitle)+'.\n\n'+
       'Series: '+cleanName+'\n'+
+      (detected
+        ? 'Title pattern detected from '+detected.count+' creator uploads.\n'
+        : 'No repeated title pattern was detected; the suggested name was based on the selected video.\n'
+      )+
       'Already in this series: '+alreadyInSeries+'\n'+
       'New or updated matches: '+(matches.length-alreadyInSeries)+'\n\n'+
       'Examples:\n'+sampleTitles+
