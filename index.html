@@ -212,9 +212,6 @@ button.add-series-button {
   flex-direction:column;
   justify-content:center;
 }
-
-/* Player controls fade away together. */
-
 .player-header {
   position:absolute;
   z-index:5;
@@ -234,7 +231,6 @@ button.add-series-button {
   box-shadow:none;
   pointer-events:none;
 }
-
 .player-heading {
   min-width:0;
   flex:1;
@@ -247,7 +243,6 @@ button.add-series-button {
   visibility:hidden;
   transition:opacity .35s ease,visibility .35s ease;
 }
-
 .player-heading strong {
   display:block;
   color:#f2f2fa;
@@ -258,7 +253,6 @@ button.add-series-button {
   display:block;
   margin-top:3px;
 }
-
 .player-actions {
   display:flex;
   gap:9px;
@@ -271,10 +265,7 @@ button.add-series-button {
   min-height:42px;
   box-shadow:0 5px 20px #0008;
 }
-.player-close {
-  background:#482b3c;
-  color:#ffdce7;
-}
+.player-close {background:#482b3c;color:#ffdce7}
 .player-fullscreen {
   background:#30264b;
   color:#e1d8ff;
@@ -282,20 +273,17 @@ button.add-series-button {
   visibility:hidden;
   transition:opacity .35s ease,visibility .35s ease;
 }
-
 .player-overlay.controls-visible .player-heading,
 .player-overlay.controls-visible .player-fullscreen,
 .player-overlay.controls-visible .player-close {
   opacity:1;
   visibility:visible;
 }
-
 .player-close {
   opacity:0;
   visibility:hidden;
   transition:opacity .35s ease,visibility .35s ease;
 }
-
 .player-stage {
   width:100%;
   max-width:1250px;
@@ -317,15 +305,6 @@ button.add-series-button {
   border:0;
   background:#000;
 }
-
-/*
-  Transparent tap layer.
-
-  It appears only while the player controls are hidden.
-  The first tap reveals the controls. When controls are visible,
-  this layer disappears and YouTube receives normal interaction.
-*/
-
 .player-tap-layer {
   display:none;
   position:absolute;
@@ -336,11 +315,9 @@ button.add-series-button {
   touch-action:manipulation;
   -webkit-tap-highlight-color:transparent;
 }
-
 .player-overlay.active:not(.controls-visible) .player-tap-layer {
   display:block;
 }
-
 .player-message {
   display:none;
   width:100%;
@@ -351,7 +328,6 @@ button.add-series-button {
   text-align:center;
 }
 .player-message.visible {display:block}
-
 .player-overlay:fullscreen {
   padding:0;
   background:#000;
@@ -807,19 +783,7 @@ function openPlayer(video) {
   document.body.classList.add("player-open");
   overlay.classList.add("controls-visible");
 
-  /*
-    Load the YouTube iframe before requesting fullscreen.
-    This gives the browser the best chance of allowing autoplay
-    while the original user interaction is still active.
-  */
-
   iframe.src = playerUrl.toString();
-
-  /*
-    Request fullscreen directly from the user's episode-selection
-    action. Browsers may still refuse this request; if they do,
-    the player opens normally and the user can use Fullscreen.
-  */
 
   try {
     if (overlay.requestFullscreen) {
@@ -839,11 +803,6 @@ function openPlayer(video) {
     console.warn("Automatic fullscreen was not accepted:",error);
   }
 
-  /*
-    Focus the overlay rather than an individual button.
-    Focus itself will not prevent the controls from fading away.
-  */
-
   overlay.focus({preventScroll:true});
   schedulePlayerControlsHide();
 
@@ -856,12 +815,6 @@ function closePlayer() {
   if (!overlay.classList.contains("active")) return;
 
   clearTimeout(playerControlsTimer);
-
-  /*
-    Stop playback completely when closing the player.
-    Removing the iframe source also prevents background audio.
-  */
-
   $("youtubePlayer").src = "about:blank";
 
   overlay.classList.remove("active","controls-visible");
@@ -911,18 +864,6 @@ async function togglePlayerFullscreen() {
     showPlayerControls();
   }
 }
-
-/*
-  The transparent tap layer sits above the YouTube iframe while
-  the AI Cinema controls are hidden.
-
-  A tap on that layer reveals the controls. Once they are visible,
-  CSS removes the layer from the screen so taps go directly to
-  the YouTube player as normal.
-
-  We deliberately do not use swipe or pointer-movement gestures
-  to reveal the controls.
-*/
 
 $("playerTapLayer").addEventListener("click",()=>{
   showPlayerControls();
@@ -1958,15 +1899,6 @@ function inferSeriesName(title) {
 
 /*
   FIND A SERIES NAME FROM THE CREATOR'S UPLOADS
-
-  Instead of relying only on episode-number markers, this examines
-  recurring title phrases across the creator's uploads.
-
-  The selected video must contain the phrase, and the phrase must
-  appear in at least two distinct uploads.
-
-  Common filler words are excluded. Longer repeated phrases are
-  preferred when they occur across the same group of videos.
 */
 
 function detectSeriesFromUploads(selectedVideo,uploads) {
@@ -2038,12 +1970,6 @@ function detectSeriesFromUploads(selectedVideo,uploads) {
     selectedNormalised.includes(candidate.phrase)
   );
 
-  /*
-    Remove shorter phrases when a longer phrase occurs in exactly
-    the same uploads. This avoids choosing "Noctari" when the
-    creator consistently uses a more descriptive repeated title.
-  */
-
   found = found.filter(candidate=>{
     return !found.some(other=>{
       if (other.phrase===candidate.phrase) return false;
@@ -2071,6 +1997,24 @@ function detectSeriesFromUploads(selectedVideo,uploads) {
     count:best.videoIds.size,
     examples:best.examples
   };
+}
+
+/*
+  TEST WHETHER A VIDEO BELONGS TO A SERIES.
+
+  This deliberately checks both title and description, matching
+  the same approach used by the channel scanner.
+*/
+
+function videoMatchesSeries(video,seriesName) {
+  const phrase = normaliseSearch(seriesName);
+
+  if (!phrase || phrase.length<3) return false;
+
+  const title = normaliseSearch(video.title);
+  const description = normaliseSearch(video.description);
+
+  return title.includes(phrase) || description.includes(phrase);
 }
 
 /* ADD A WHOLE SERIES FROM A YOUTUBE SEARCH RESULT */
@@ -2129,34 +2073,83 @@ async function addYoutubeSeries(video,button) {
     const detailed = await addVideoDetails(uploads,key);
 
     /*
-      First try to identify a repeated phrase from the creator's
-      actual uploads. Only fall back to the old title-based method
-      if no repeated phrase can be identified.
+      Check the saved series names for this creator first.
+      These are names the user has already confirmed, so they
+      take priority over guessing from a video title.
+    */
+
+    const savedChannel = await getSavedChannel(video.channelId);
+
+    const savedNames = Array.isArray(savedChannel?.seriesNames)
+      ? savedChannel.seriesNames
+          .map(name=>String(name||"").trim())
+          .filter(Boolean)
+      : [];
+
+    const knownSeries = savedNames
+      .map(name=>({
+        name,
+        matches:detailed.filter(item=>videoMatchesSeries(item,name))
+      }))
+      .filter(candidate=>
+        videoMatchesSeries(video,candidate.name) &&
+        candidate.matches.length>=2
+      )
+      .sort((a,b)=>{
+        const aTitle = normaliseSearch(video.title)
+          .includes(normaliseSearch(a.name)) ? 1 : 0;
+        const bTitle = normaliseSearch(video.title)
+          .includes(normaliseSearch(b.name)) ? 1 : 0;
+
+        return bTitle-aTitle ||
+          normaliseSearch(b.name).length-normaliseSearch(a.name).length ||
+          b.matches.length-a.matches.length;
+      });
+
+    /*
+      If no saved series name matches, look for a repeated title
+      pattern across the creator's uploads.
     */
 
     const detected = detectSeriesFromUploads(video,detailed);
-    const suggestedName = detected?.name || inferSeriesName(video.title);
 
-    const promptMessage = detected
-      ? "AI Cinema found a recurring title pattern across "+
-        detected.count+" creator uploads.\n\n"+
-        "Suggested series name (you can edit it):"
-      : "AI Cinema could not find a clear recurring title pattern.\n\n"+
-        "Please check or enter the series name:";
+    const recognisedName =
+      knownSeries[0]?.name || detected?.name || "";
 
-    const seriesName = window.prompt(
-      promptMessage,
-      suggestedName
-    );
+    let seriesName;
 
-    if (seriesName===null) {
-      button.disabled = false;
-      button.textContent = "✦ Add Series";
-      setStatus("Series import cancelled. Your library has not been changed.");
-      return;
+    if (recognisedName) {
+      /*
+        Confident match: use the name automatically.
+        No unnecessary prompt.
+      */
+      seriesName = recognisedName;
+
+      setStatus(
+        'Recognised series "'+seriesName+
+        '". Checking the creator uploads for matching episodes...'
+      );
+
+    } else {
+      /*
+        No reliable match: ask the user to name the series.
+      */
+      const suggestedName = inferSeriesName(video.title);
+
+      seriesName = window.prompt(
+        "AI Cinema could not confidently identify this series.\n\nPlease check or enter the series name:",
+        suggestedName
+      );
+
+      if (seriesName===null) {
+        button.disabled = false;
+        button.textContent = "✦ Add Series";
+        setStatus("Series import cancelled. Your library has not been changed.");
+        return;
+      }
     }
 
-    const cleanName = seriesName.trim();
+    const cleanName = String(seriesName||"").trim();
     const normalisedName = normaliseSearch(cleanName);
 
     if (!normalisedName) {
@@ -2174,13 +2167,17 @@ async function addYoutubeSeries(video,button) {
     }
 
     setStatus(
-      'Looking for uploads matching "'+cleanName+'"...'
+      'Looking for uploads matching "'+cleanName+
+      '" in titles and descriptions...'
     );
 
-    const phrase = normaliseSearch(cleanName);
+    /*
+      Match titles AND descriptions, just like identifySeries()
+      does during a normal channel scan.
+    */
 
     let matches = detailed.filter(item=>
-      normaliseSearch(item.title).includes(phrase)
+      videoMatchesSeries(item,cleanName)
     );
 
     /*
@@ -2209,7 +2206,7 @@ async function addYoutubeSeries(video,button) {
     );
 
     const alreadyInSeries = matches.filter(item=>
-      existingById.get(item.id)?.series===cleanName
+      normaliseSearch(existingById.get(item.id)?.series||"")===normalisedName
     ).length;
 
     const sampleTitles = matches
@@ -2221,9 +2218,11 @@ async function addYoutubeSeries(video,button) {
       'AI Cinema found '+matches.length+
       ' matching video(s) on '+(channel.snippet?.title || video.channelTitle)+'.\n\n'+
       'Series: '+cleanName+'\n'+
-      (detected
-        ? 'Title pattern detected from '+detected.count+' creator uploads.\n'
-        : 'No repeated title pattern was detected; the suggested name was based on the selected video.\n'
+      (knownSeries.length
+        ? 'Matched against a previously saved series name.\n'
+        : detected
+          ? 'Title pattern detected from '+detected.count+' creator uploads.\n'
+          : 'Series name supplied manually.\n'
       )+
       'Already in this series: '+alreadyInSeries+'\n'+
       'New or updated matches: '+(matches.length-alreadyInSeries)+'\n\n'+
@@ -2243,7 +2242,6 @@ async function addYoutubeSeries(video,button) {
       " videos for the "+cleanName+" series..."
     );
 
-    const savedChannel = await getSavedChannel(video.channelId);
     const names = Array.isArray(savedChannel?.seriesNames)
       ? [...savedChannel.seriesNames]
       : [];
