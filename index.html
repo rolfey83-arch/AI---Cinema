@@ -104,6 +104,17 @@ button:focus-visible,a:focus-visible,summary:focus-visible {
   outline:3px solid var(--accent2);
   outline-offset:3px;
 }
+
+/* FIRE TV REMOTE FOCUS */
+
+.remote-focus {
+  outline:4px solid var(--accent2)!important;
+  outline-offset:4px!important;
+  box-shadow:0 0 0 7px #63c8f544!important;
+  position:relative;
+  z-index:2;
+}
+
 button.remove-button {
   margin:0;padding:9px 13px;
   background:#482b3c;color:#ffdce7;font-size:12px;
@@ -844,16 +855,20 @@ $("playerTapLayer").addEventListener("click",()=>{
 
 $("playerOverlay").addEventListener("focusin",showPlayerControls);
 
+function isBackKey(event) {
+  return event.key==="Escape" ||
+    event.key==="Backspace" ||
+    event.key==="BrowserBack" ||
+    event.keyCode===4 ||
+    event.keyCode===10009;
+}
+
 document.addEventListener("keydown",event=>{
   const overlay = $("playerOverlay");
 
   if (!overlay.classList.contains("active")) return;
 
-  if (
-    event.key==="Escape" ||
-    event.key==="Backspace" ||
-    event.key==="BrowserBack"
-  ) {
+  if (isBackKey(event)) {
     event.preventDefault();
     closePlayer();
     return;
@@ -872,6 +887,233 @@ document.addEventListener("fullscreenchange",()=>{
 
 $("closePlayerButton").addEventListener("click",closePlayer);
 $("fullscreenButton").addEventListener("click",togglePlayerFullscreen);
+
+/* FIRE TV REMOTE NAVIGATION */
+
+/*
+  Directional navigation for Fire TV / Silk browser.
+
+  Arrow keys move focus between visible interactive elements.
+  Enter/OK uses normal browser activation.
+  Back closes the topmost open details panel.
+  When the player is active, its own key handling takes priority.
+
+  Text input left/right arrows and native select navigation are
+  deliberately left to the browser.
+*/
+
+let lastRemoteFocus = null;
+
+function getRemoteFocusableElements() {
+  const selector = [
+    "button:not([disabled])",
+    "a[href]",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    "summary",
+    "[tabindex]:not([tabindex='-1'])"
+  ].join(",");
+
+  return Array.from(document.querySelectorAll(selector)).filter(element=>{
+    if (element.disabled) return false;
+    if (element.getAttribute("aria-disabled")==="true") return false;
+    if (element.closest("[hidden]")) return false;
+    if (element.closest(".player-overlay")) return false;
+
+    const style = window.getComputedStyle(element);
+    if (style.display==="none" || style.visibility==="hidden") return false;
+
+    const rect = element.getBoundingClientRect();
+    if (rect.width===0 || rect.height===0) return false;
+
+    return element.getClientRects().length>0;
+  });
+}
+
+function setRemoteFocus(element) {
+  if (!element) return;
+
+  if (lastRemoteFocus) {
+    lastRemoteFocus.classList.remove("remote-focus");
+  }
+
+  element.focus({preventScroll:true});
+  element.classList.add("remote-focus");
+  lastRemoteFocus = element;
+
+  element.scrollIntoView({
+    behavior:"smooth",
+    block:"nearest",
+    inline:"nearest"
+  });
+}
+
+document.addEventListener("focusin",event=>{
+  if (
+    lastRemoteFocus &&
+    lastRemoteFocus!==event.target
+  ) {
+    lastRemoteFocus.classList.remove("remote-focus");
+  }
+
+  if (event.target.matches &&
+      event.target.matches(
+        "button,a[href],input,select,summary,[tabindex]"
+      )) {
+    lastRemoteFocus = event.target;
+  }
+});
+
+function getArrowDirection(event) {
+  const key = event.key;
+
+  if (key==="ArrowUp" || event.keyCode===38) return "up";
+  if (key==="ArrowDown" || event.keyCode===40) return "down";
+  if (key==="ArrowLeft" || event.keyCode===37) return "left";
+  if (key==="ArrowRight" || event.keyCode===39) return "right";
+
+  return null;
+}
+
+function moveRemoteFocus(direction) {
+  const elements = getRemoteFocusableElements();
+
+  if (!elements.length) return;
+
+  const current = document.activeElement;
+
+  if (!current || current===document.body ||
+      !elements.includes(current)) {
+    setRemoteFocus(elements[0]);
+    return;
+  }
+
+  const currentRect = current.getBoundingClientRect();
+  const currentX = currentRect.left + currentRect.width/2;
+  const currentY = currentRect.top + currentRect.height/2;
+
+  let bestElement = null;
+  let bestScore = Infinity;
+
+  for (const candidate of elements) {
+    if (candidate===current) continue;
+
+    const rect = candidate.getBoundingClientRect();
+    const candidateX = rect.left + rect.width/2;
+    const candidateY = rect.top + rect.height/2;
+
+    const dx = candidateX-currentX;
+    const dy = candidateY-currentY;
+
+    let primary;
+    let secondary;
+
+    if (direction==="right") {
+      if (dx<=3) continue;
+      primary=dx;
+      secondary=Math.abs(dy);
+    } else if (direction==="left") {
+      if (dx>=-3) continue;
+      primary=-dx;
+      secondary=Math.abs(dy);
+    } else if (direction==="down") {
+      if (dy<=3) continue;
+      primary=dy;
+      secondary=Math.abs(dx);
+    } else {
+      if (dy>=-3) continue;
+      primary=-dy;
+      secondary=Math.abs(dx);
+    }
+
+    /*
+      Prioritise elements in the requested direction.
+      Perpendicular distance helps choose the nearest sensible row
+      or column instead of jumping to a distant control.
+    */
+
+    const score = primary + secondary*1.7;
+
+    if (score<bestScore) {
+      bestScore=score;
+      bestElement=candidate;
+    }
+  }
+
+  if (bestElement) {
+    setRemoteFocus(bestElement);
+  }
+}
+
+function closeTopmostDetails() {
+  const openPanels = Array.from(
+    document.querySelectorAll("details[open]")
+  );
+
+  if (!openPanels.length) return false;
+
+  const panel = openPanels[openPanels.length-1];
+  const summary = panel.querySelector(":scope > summary");
+
+  panel.open=false;
+
+  if (summary) {
+    setRemoteFocus(summary);
+  }
+
+  return true;
+}
+
+document.addEventListener("keydown",event=>{
+  const overlay = $("playerOverlay");
+
+  /* The embedded YouTube player keeps control of its own remote keys. */
+  if (overlay.classList.contains("active")) return;
+
+  const target = event.target;
+  const tag = target && target.tagName
+    ? target.tagName.toLowerCase()
+    : "";
+
+  const isTextEntry =
+    tag==="textarea" ||
+    target?.isContentEditable;
+
+  const isSelect = tag==="select";
+
+  const isTextInput =
+    tag==="input" &&
+    !["button","checkbox","radio","submit","reset","range","color"]
+      .includes((target.type||"text").toLowerCase());
+
+  /* Back must not delete text or interfere with normal text editing. */
+  if (isBackKey(event)) {
+    if (
+      event.key==="Backspace" &&
+      (isTextInput || isTextEntry)
+    ) return;
+
+    if (closeTopmostDetails()) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    return;
+  }
+
+  const direction = getArrowDirection(event);
+  if (!direction) return;
+
+  /* Native select menus retain their own arrow-key behaviour. */
+  if (isSelect || isTextEntry) return;
+
+  /* Left/right remain available for moving the text cursor. */
+  if (isTextInput && (direction==="left" || direction==="right"))
+    return;
+
+  event.preventDefault();
+  moveRemoteFocus(direction);
+});
 
 /* DATABASE — EXISTING DATABASE PRESERVED */
 
@@ -1010,14 +1252,6 @@ async function loadChannelSettings() {
 
 /* YOUTUBE API — CLOUDFLARE WORKER PROXY */
 
-/*
-  The Worker adds the secret API key on the server side.
-  Do not add a key parameter here.
-
-  The Worker expects requests in this format:
-  https://old-voice-c811.rolfey83.workers.dev/youtube/v3/ENDPOINT
-*/
-
 async function apiRequest(endpoint,params,key) {
   const allowedEndpoints = new Set([
     "channels",
@@ -1072,12 +1306,6 @@ async function apiRequest(endpoint,params,key) {
 
   return response.json();
 }
-
-/*
-  The existing functions expect a key check before starting an operation.
-  Return a harmless internal marker so those functions can keep their
-  existing flow without asking the user for a key.
-*/
 
 function getApiKey() {
   return "cloudflare-worker";
