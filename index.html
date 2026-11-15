@@ -213,8 +213,7 @@ button.add-series-button {
   justify-content:center;
 }
 
-/* Floating player controls.
-   Close stays available; title and fullscreen fade away. */
+/* All player controls fade away together. */
 
 .player-header {
   position:absolute;
@@ -285,9 +284,16 @@ button.add-series-button {
 }
 
 .player-overlay.controls-visible .player-heading,
-.player-overlay.controls-visible .player-fullscreen {
+.player-overlay.controls-visible .player-fullscreen,
+.player-overlay.controls-visible .player-close {
   opacity:1;
   visibility:visible;
+}
+
+.player-close {
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .35s ease,visibility .35s ease;
 }
 
 .player-stage {
@@ -719,13 +725,6 @@ function showPlayerControls() {
 
   playerControlsTimer = setTimeout(() => {
     if (!overlay.classList.contains("active")) return;
-
-    /*
-      Do not leave the title and fullscreen control on screen
-      just because the Close button has keyboard focus.
-      The Close button remains visible independently.
-    */
-
     overlay.classList.remove("controls-visible");
   },PLAYER_CONTROLS_TIMEOUT);
 }
@@ -775,15 +774,23 @@ function openPlayer(video) {
   playerUrl.searchParams.set("enablejsapi","1");
   playerUrl.searchParams.set("origin",window.location.origin);
 
+  overlay.classList.add("active");
+  document.body.classList.add("player-open");
+  overlay.classList.add("controls-visible");
+
+  /*
+    Load the YouTube iframe before requesting fullscreen.
+    This gives the browser the best chance of allowing autoplay
+    while the original user interaction is still active.
+  */
+
+  iframe.src = playerUrl.toString();
+
   /*
     Request fullscreen directly from the user's episode-selection
     action. Browsers may still refuse this request; if they do,
     the player opens normally and the user can use Fullscreen.
   */
-
-  overlay.classList.add("active");
-  document.body.classList.add("player-open");
-  overlay.classList.add("controls-visible");
 
   try {
     if (overlay.requestFullscreen) {
@@ -803,12 +810,9 @@ function openPlayer(video) {
     console.warn("Automatic fullscreen was not accepted:",error);
   }
 
-  iframe.src = playerUrl.toString();
-
   /*
-    Focus the overlay, not the Close button.
-    This prevents keyboard focus from keeping the title visible
-    indefinitely. The Close control remains visible regardless.
+    Focus the overlay rather than an individual button.
+    Focus itself will not prevent the controls from fading away.
   */
 
   overlay.focus({preventScroll:true});
@@ -880,10 +884,13 @@ async function togglePlayerFullscreen() {
 }
 
 /*
-  Activity on the player overlay brings the title and fullscreen
-  control back. The Close button remains visible at all times.
+  Activity on the player overlay brings the controls back.
+  They fade again after the inactivity timeout.
 
-  Note: clicks and taps inside the YouTube iframe are handled by
+  Focus changes also show the controls, but focus alone does
+  not keep them visible indefinitely.
+
+  Clicks and taps inside the YouTube iframe are handled by
   YouTube and do not bubble up to this page.
 */
 
