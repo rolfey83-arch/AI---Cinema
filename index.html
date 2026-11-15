@@ -205,18 +205,49 @@ button.add-series-button {
   z-index:9999;
   background:#080910;
   padding:18px;
-  overflow-y:auto;
+  overflow:hidden;
 }
-.player-overlay.active {display:flex;flex-direction:column}
+.player-overlay.active {
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+/* The player header floats over the video and fades away. */
+
 .player-header {
-  width:100%;
+  position:absolute;
+  z-index:5;
+  top:18px;
+  left:50%;
+  transform:translateX(-50%);
+  width:calc(100% - 36px);
   max-width:1250px;
-  margin:0 auto 14px;
+  margin:0;
+  padding:12px 15px;
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:15px;
+  border:1px solid #ffffff20;
+  border-radius:10px;
+  background:#10111cdd;
+  box-shadow:0 5px 20px #0008;
+
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:
+    opacity .45s ease,
+    visibility .45s ease;
 }
+
+.player-overlay.controls-visible .player-header {
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+}
+
 .player-heading {
   min-width:0;
   flex:1;
@@ -255,7 +286,7 @@ button.add-series-button {
   margin:auto;
   position:relative;
   aspect-ratio:16/9;
-  max-height:calc(100vh - 125px);
+  max-height:calc(100vh - 36px);
   background:#000;
   border:1px solid #34364c;
   border-radius:12px;
@@ -278,26 +309,14 @@ button.add-series-button {
   text-align:center;
 }
 .player-message.visible {display:block}
+
 .player-overlay:fullscreen {
   padding:0;
   background:#000;
 }
 .player-overlay:fullscreen .player-header {
-  position:absolute;
-  z-index:2;
-  top:12px;
-  left:0;
-  right:0;
-  width:calc(100% - 24px);
-  padding:10px 14px;
-  border-radius:9px;
-  background:#10111cdd;
-  opacity:0;
-  transition:opacity .2s;
-}
-.player-overlay:fullscreen .player-header:focus-within,
-.player-overlay:fullscreen .player-header:hover {
-  opacity:1;
+  top:16px;
+  width:calc(100% - 32px);
 }
 .player-overlay:fullscreen .player-stage {
   max-width:none;
@@ -309,6 +328,45 @@ button.add-series-button {
   border-radius:0;
 }
 .player-overlay:fullscreen .player-message {display:none}
+
+@media(max-width:600px) {
+  body {padding:19px 12px 35px}
+  header {gap:12px;margin-bottom:22px}
+  .logo {width:53px;height:53px;border-radius:15px}
+  .logo svg {width:35px;height:35px}
+  .panel,.library-toolbar {padding:16px}
+  .youtube-search-panel {padding:0}
+  .youtube-search-content {padding:0 16px 16px}
+  .filters {grid-template-columns:1fr}
+  .youtube-search-controls {grid-template-columns:1fr}
+  .youtube-search-controls button {width:100%}
+  .episode {gap:11px}
+  .episode img {width:115px}
+  .youtube-result {gap:11px}
+  .youtube-result img {width:115px}
+  .discovery-card,.managed-series-card,.managed-channel-card {
+    align-items:flex-start
+  }
+  .discovery-card button,.managed-series-card button,
+  .managed-channel-card button {padding:9px 11px}
+  .stat {min-width:95px}
+  .player-overlay {padding:10px}
+  .player-header {
+    top:10px;
+    width:calc(100% - 20px);
+    padding:9px;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .player-heading strong {font-size:13px}
+  .player-actions {gap:6px}
+  .player-actions button {padding:9px 10px;font-size:12px}
+  .player-stage {
+    margin:auto 0;
+    max-height:none;
+    border-radius:8px;
+  }
+}
 
 /* YOUTUBE SEARCH */
 
@@ -431,38 +489,6 @@ button.add-series-button {
   border-left:3px solid #7560ba;
   background:#171927;border-radius:0 9px 9px 0;
   font-size:12px;
-}
-@media(max-width:600px) {
-  body {padding:19px 12px 35px}
-  header {gap:12px;margin-bottom:22px}
-  .logo {width:53px;height:53px;border-radius:15px}
-  .logo svg {width:35px;height:35px}
-  .panel,.library-toolbar {padding:16px}
-  .youtube-search-panel {padding:0}
-  .youtube-search-content {padding:0 16px 16px}
-  .filters {grid-template-columns:1fr}
-  .youtube-search-controls {grid-template-columns:1fr}
-  .youtube-search-controls button {width:100%}
-  .episode {gap:11px}
-  .episode img {width:115px}
-  .youtube-result {gap:11px}
-  .youtube-result img {width:115px}
-  .discovery-card,.managed-series-card,.managed-channel-card {
-    align-items:flex-start
-  }
-  .discovery-card button,.managed-series-card button,
-  .managed-channel-card button {padding:9px 11px}
-  .stat {min-width:95px}
-  .player-overlay {padding:10px}
-  .player-header {align-items:flex-start;gap:8px}
-  .player-heading strong {font-size:13px}
-  .player-actions {gap:6px}
-  .player-actions button {padding:9px 10px;font-size:12px}
-  .player-stage {
-    margin:auto 0;
-    max-height:none;
-    border-radius:8px;
-  }
 }
 </style>
 </head>
@@ -652,6 +678,7 @@ const SHORT_CUTOFF_DATE = new Date("2024-10-15T00:00:00Z");
 const DB_NAME = "AICinemaLibrary";
 const DB_VERSION = 1;
 const API_KEY_STORAGE = "AICinemaYouTubeApiKey";
+const PLAYER_CONTROLS_TIMEOUT = 3500;
 
 const $ = id => document.getElementById(id);
 let library = [];
@@ -661,11 +688,64 @@ let activeChannelTitle = "";
 let youtubeSearchResults = [];
 let apiKeySavedLocally = false;
 let lastPlayerFocus = null;
+let playerControlsTimer = null;
 
 /* STATUS */
 
 function setStatus(message) {
   $("status").textContent = message;
+}
+
+/* PLAYER CONTROL VISIBILITY */
+
+function showPlayerControls() {
+  const overlay = $("playerOverlay");
+
+  if (!overlay.classList.contains("active")) return;
+
+  overlay.classList.add("controls-visible");
+
+  clearTimeout(playerControlsTimer);
+
+  playerControlsTimer = setTimeout(() => {
+    /*
+      Do not hide the controls while a user is actively
+      navigating or interacting with the visible buttons.
+    */
+
+    if (!overlay.classList.contains("active")) return;
+
+    if (overlay.querySelector(".player-header :focus")) {
+      schedulePlayerControlsHide();
+      return;
+    }
+
+    overlay.classList.remove("controls-visible");
+
+  },PLAYER_CONTROLS_TIMEOUT);
+}
+
+function schedulePlayerControlsHide() {
+  clearTimeout(playerControlsTimer);
+
+  playerControlsTimer = setTimeout(() => {
+    const overlay = $("playerOverlay");
+
+    if (!overlay.classList.contains("active")) return;
+
+    if (overlay.querySelector(".player-header :focus")) {
+      schedulePlayerControlsHide();
+      return;
+    }
+
+    overlay.classList.remove("controls-visible");
+
+  },PLAYER_CONTROLS_TIMEOUT);
+}
+
+function hidePlayerControls() {
+  clearTimeout(playerControlsTimer);
+  $("playerOverlay").classList.remove("controls-visible");
 }
 
 /* EMBEDDED YOUTUBE PLAYER */
@@ -687,12 +767,6 @@ function openPlayer(video) {
   $("playerTitle").textContent = video.title || "Now playing";
   $("playerMessage").classList.remove("visible");
 
-  /*
-    The origin parameter allows YouTube to identify the
-    embedding website. The existing GitHub Pages origin
-    and IndexedDB database are not changed.
-  */
-
   const playerUrl = new URL(
     "https://www.youtube.com/embed/"+encodeURIComponent(videoId)
   );
@@ -709,6 +783,14 @@ function openPlayer(video) {
   overlay.classList.add("active");
   document.body.classList.add("player-open");
 
+  /*
+    Show the title and buttons immediately when playback starts.
+    They will automatically disappear after the inactivity period.
+  */
+
+  overlay.classList.add("controls-visible");
+  schedulePlayerControlsHide();
+
   $("closePlayerButton").focus();
 
   setStatus('Playing "'+(video.title || "video")+'" inside AI Cinema.');
@@ -719,13 +801,22 @@ function closePlayer() {
 
   if (!overlay.classList.contains("active")) return;
 
+  clearTimeout(playerControlsTimer);
+
   /*
     Stop playback completely when closing the player.
     Removing the iframe source also prevents background audio.
   */
 
   $("youtubePlayer").src = "about:blank";
-  overlay.classList.remove("active");
+
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(error=>{
+      console.warn("Could not exit fullscreen:",error);
+    });
+  }
+
+  overlay.classList.remove("active","controls-visible");
   document.body.classList.remove("player-open");
 
   if (lastPlayerFocus && typeof lastPlayerFocus.focus==="function") {
@@ -743,13 +834,9 @@ async function togglePlayerFullscreen() {
   try {
     if (document.fullscreenElement) {
       await document.exitFullscreen();
+      showPlayerControls();
       return;
     }
-
-    /*
-      Fullscreen is requested from a button press, satisfying
-      the browser's user-gesture requirement.
-    */
 
     if (overlay.requestFullscreen) {
       await overlay.requestFullscreen();
@@ -761,30 +848,41 @@ async function togglePlayerFullscreen() {
       $("playerMessage").classList.add("visible");
     }
 
+    showPlayerControls();
+
   } catch(error) {
     console.warn("Fullscreen request was not accepted:",error);
 
     $("playerMessage").textContent =
       "The browser did not allow fullscreen. Try the fullscreen control inside the YouTube player.";
     $("playerMessage").classList.add("visible");
+
+    showPlayerControls();
   }
 }
+
+/*
+  Activity outside the YouTube iframe brings the overlay controls back.
+  The timer then hides them again after PLAYER_CONTROLS_TIMEOUT.
+*/
+
+$("playerOverlay").addEventListener("pointermove",showPlayerControls);
+$("playerOverlay").addEventListener("pointerdown",showPlayerControls);
+$("playerOverlay").addEventListener("touchstart",showPlayerControls,{passive:true});
+$("playerOverlay").addEventListener("focusin",showPlayerControls);
 
 document.addEventListener("keydown",event=>{
   const overlay = $("playerOverlay");
 
   if (!overlay.classList.contains("active")) return;
 
+  showPlayerControls();
+
   if (
     event.key==="Escape" ||
     event.key==="Backspace" ||
     event.key==="BrowserBack"
   ) {
-    /*
-      Do not intercept Backspace while the user is interacting
-      with a text input. The player itself has no text fields.
-    */
-
     event.preventDefault();
     closePlayer();
   }
@@ -1640,11 +1738,6 @@ function renderYoutubeSearchResults() {
     const content = document.createElement("div");
     content.className = "youtube-result-content";
 
-    /*
-      The title is now a button rather than an external link.
-      Selecting it opens the embedded player.
-    */
-
     const link = document.createElement("a");
     link.className = "youtube-result-title";
     link.href = "#";
@@ -2275,11 +2368,6 @@ function renderVideo(video,type) {
     "https://i.ytimg.com/vi/"+encodeURIComponent(video.id)+"/mqdefault.jpg";
 
   const details = document.createElement("div");
-
-  /*
-    Saved video titles now open the embedded player rather
-    than opening a new YouTube browser tab.
-  */
 
   const link = document.createElement("a");
   link.href = "#";
