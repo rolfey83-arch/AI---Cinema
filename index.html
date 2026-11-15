@@ -213,7 +213,8 @@ button.add-series-button {
   justify-content:center;
 }
 
-/* The player header floats over the video and fades away. */
+/* Floating player controls.
+   Close stays available; title and fullscreen fade away. */
 
 .player-header {
   position:absolute;
@@ -224,34 +225,30 @@ button.add-series-button {
   width:calc(100% - 36px);
   max-width:1250px;
   margin:0;
-  padding:12px 15px;
+  padding:0;
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   justify-content:space-between;
   gap:15px;
-  border:1px solid #ffffff20;
-  border-radius:10px;
-  background:#10111cdd;
-  box-shadow:0 5px 20px #0008;
-
-  opacity:0;
-  visibility:hidden;
+  border:0;
+  background:transparent;
+  box-shadow:none;
   pointer-events:none;
-  transition:
-    opacity .45s ease,
-    visibility .45s ease;
-}
-
-.player-overlay.controls-visible .player-header {
-  opacity:1;
-  visibility:visible;
-  pointer-events:auto;
 }
 
 .player-heading {
   min-width:0;
   flex:1;
+  padding:12px 15px;
+  border:1px solid #ffffff20;
+  border-radius:10px;
+  background:#10111cdd;
+  box-shadow:0 5px 20px #0008;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .35s ease,visibility .35s ease;
 }
+
 .player-heading strong {
   display:block;
   color:#f2f2fa;
@@ -262,15 +259,18 @@ button.add-series-button {
   display:block;
   margin-top:3px;
 }
+
 .player-actions {
   display:flex;
   gap:9px;
   flex-shrink:0;
+  pointer-events:auto;
 }
 .player-actions button {
   margin:0;
   padding:10px 15px;
   min-height:42px;
+  box-shadow:0 5px 20px #0008;
 }
 .player-close {
   background:#482b3c;
@@ -279,7 +279,17 @@ button.add-series-button {
 .player-fullscreen {
   background:#30264b;
   color:#e1d8ff;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .35s ease,visibility .35s ease;
 }
+
+.player-overlay.controls-visible .player-heading,
+.player-overlay.controls-visible .player-fullscreen {
+  opacity:1;
+  visibility:visible;
+}
+
 .player-stage {
   width:100%;
   max-width:1250px;
@@ -319,6 +329,8 @@ button.add-series-button {
   width:calc(100% - 32px);
 }
 .player-overlay:fullscreen .player-stage {
+  position:absolute;
+  inset:0;
   max-width:none;
   max-height:none;
   width:100%;
@@ -354,10 +366,9 @@ button.add-series-button {
   .player-header {
     top:10px;
     width:calc(100% - 20px);
-    padding:9px;
-    align-items:flex-start;
     gap:8px;
   }
+  .player-heading {padding:9px}
   .player-heading strong {font-size:13px}
   .player-actions {gap:6px}
   .player-actions button {padding:9px 10px;font-size:12px}
@@ -540,7 +551,7 @@ button.add-series-button {
 <!-- EMBEDDED PLAYER -->
 
 <section id="playerOverlay" class="player-overlay"
-  role="dialog" aria-modal="true" aria-label="Video player">
+  role="dialog" aria-modal="true" aria-label="Video player" tabindex="-1">
 
   <div class="player-header">
     <div class="player-heading">
@@ -704,24 +715,18 @@ function showPlayerControls() {
   if (!overlay.classList.contains("active")) return;
 
   overlay.classList.add("controls-visible");
-
   clearTimeout(playerControlsTimer);
 
   playerControlsTimer = setTimeout(() => {
-    /*
-      Do not hide the controls while a user is actively
-      navigating or interacting with the visible buttons.
-    */
-
     if (!overlay.classList.contains("active")) return;
 
-    if (overlay.querySelector(".player-header :focus")) {
-      schedulePlayerControlsHide();
-      return;
-    }
+    /*
+      Do not leave the title and fullscreen control on screen
+      just because the Close button has keyboard focus.
+      The Close button remains visible independently.
+    */
 
     overlay.classList.remove("controls-visible");
-
   },PLAYER_CONTROLS_TIMEOUT);
 }
 
@@ -730,16 +735,8 @@ function schedulePlayerControlsHide() {
 
   playerControlsTimer = setTimeout(() => {
     const overlay = $("playerOverlay");
-
     if (!overlay.classList.contains("active")) return;
-
-    if (overlay.querySelector(".player-header :focus")) {
-      schedulePlayerControlsHide();
-      return;
-    }
-
     overlay.classList.remove("controls-visible");
-
   },PLAYER_CONTROLS_TIMEOUT);
 }
 
@@ -778,20 +775,44 @@ function openPlayer(video) {
   playerUrl.searchParams.set("enablejsapi","1");
   playerUrl.searchParams.set("origin",window.location.origin);
 
-  iframe.src = playerUrl.toString();
+  /*
+    Request fullscreen directly from the user's episode-selection
+    action. Browsers may still refuse this request; if they do,
+    the player opens normally and the user can use Fullscreen.
+  */
 
   overlay.classList.add("active");
   document.body.classList.add("player-open");
+  overlay.classList.add("controls-visible");
+
+  try {
+    if (overlay.requestFullscreen) {
+      const fullscreenRequest = overlay.requestFullscreen();
+
+      if (fullscreenRequest && typeof fullscreenRequest.catch==="function") {
+        fullscreenRequest.catch(error=>{
+          console.warn("Automatic fullscreen was not accepted:",error);
+          $("playerMessage").textContent =
+            "The browser did not allow automatic fullscreen. Use the Fullscreen button or the YouTube player's fullscreen control.";
+          $("playerMessage").classList.add("visible");
+          showPlayerControls();
+        });
+      }
+    }
+  } catch(error) {
+    console.warn("Automatic fullscreen was not accepted:",error);
+  }
+
+  iframe.src = playerUrl.toString();
 
   /*
-    Show the title and buttons immediately when playback starts.
-    They will automatically disappear after the inactivity period.
+    Focus the overlay, not the Close button.
+    This prevents keyboard focus from keeping the title visible
+    indefinitely. The Close control remains visible regardless.
   */
 
-  overlay.classList.add("controls-visible");
+  overlay.focus({preventScroll:true});
   schedulePlayerControlsHide();
-
-  $("closePlayerButton").focus();
 
   setStatus('Playing "'+(video.title || "video")+'" inside AI Cinema.');
 }
@@ -810,14 +831,14 @@ function closePlayer() {
 
   $("youtubePlayer").src = "about:blank";
 
+  overlay.classList.remove("active","controls-visible");
+  document.body.classList.remove("player-open");
+
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(error=>{
       console.warn("Could not exit fullscreen:",error);
     });
   }
-
-  overlay.classList.remove("active","controls-visible");
-  document.body.classList.remove("player-open");
 
   if (lastPlayerFocus && typeof lastPlayerFocus.focus==="function") {
     lastPlayerFocus.focus();
@@ -829,7 +850,6 @@ function closePlayer() {
 
 async function togglePlayerFullscreen() {
   const overlay = $("playerOverlay");
-  const stage = $("playerStage");
 
   try {
     if (document.fullscreenElement) {
@@ -840,8 +860,6 @@ async function togglePlayerFullscreen() {
 
     if (overlay.requestFullscreen) {
       await overlay.requestFullscreen();
-    } else if (stage.requestFullscreen) {
-      await stage.requestFullscreen();
     } else {
       $("playerMessage").textContent =
         "Fullscreen is not supported by this browser. You can still use the YouTube player's own fullscreen control.";
@@ -862,8 +880,11 @@ async function togglePlayerFullscreen() {
 }
 
 /*
-  Activity outside the YouTube iframe brings the overlay controls back.
-  The timer then hides them again after PLAYER_CONTROLS_TIMEOUT.
+  Activity on the player overlay brings the title and fullscreen
+  control back. The Close button remains visible at all times.
+
+  Note: clicks and taps inside the YouTube iframe are handled by
+  YouTube and do not bubble up to this page.
 */
 
 $("playerOverlay").addEventListener("pointermove",showPlayerControls);
@@ -876,8 +897,6 @@ document.addEventListener("keydown",event=>{
 
   if (!overlay.classList.contains("active")) return;
 
-  showPlayerControls();
-
   if (
     event.key==="Escape" ||
     event.key==="Backspace" ||
@@ -885,7 +904,18 @@ document.addEventListener("keydown",event=>{
   ) {
     event.preventDefault();
     closePlayer();
+    return;
   }
+
+  showPlayerControls();
+});
+
+document.addEventListener("fullscreenchange",()=>{
+  const fullscreen = document.fullscreenElement===$("playerOverlay");
+  $("fullscreenButton").textContent =
+    fullscreen ? "⛶ Exit fullscreen" : "⛶ Fullscreen";
+  $("fullscreenButton").title =
+    fullscreen ? "Exit fullscreen" : "Enter fullscreen";
 });
 
 $("closePlayerButton").addEventListener("click",closePlayer);
