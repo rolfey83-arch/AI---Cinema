@@ -1898,123 +1898,21 @@ function inferSeriesName(title) {
 }
 
 /*
-  FIND A SERIES NAME FROM THE CREATOR'S UPLOADS
+  STRICT SERIES TITLE MATCHING
+
+  Matches a complete phrase in the video title only.
+  It does not inspect descriptions, and it avoids matching
+  a phrase buried inside a longer word.
 */
 
-function detectSeriesFromUploads(selectedVideo,uploads) {
-  const selectedWords = titleWords(selectedVideo.title || "");
-  const selectedNormalised = normaliseSearch(selectedVideo.title || "");
-
-  if (!selectedWords.length || !selectedNormalised) return null;
-
-  const candidates = new Map();
-
-  for (const upload of uploads) {
-    const words = titleWords(upload.title || "");
-    const phrases = new Set();
-
-    for (let length=1;length<=5;length++) {
-      for (let i=0;i<=words.length-length;i++) {
-        const group = words.slice(i,i+length);
-        const lowerGroup = group.map(word=>word.toLocaleLowerCase());
-
-        if (lowerGroup.some(word=>
-          DISCOVERY_STOP_WORDS.has(word)
-        )) continue;
-
-        if (length===1 && group[0].length<5) continue;
-
-        const phrase = lowerGroup.join(" ");
-        if (phrase.length<4) continue;
-
-        phrases.add(phrase);
-      }
-    }
-
-    for (const phrase of phrases) {
-      if (!candidates.has(phrase)) {
-        candidates.set(phrase,{
-          phrase,
-          videoIds:new Set(),
-          examples:[],
-          displayName:""
-        });
-      }
-
-      const candidate = candidates.get(phrase);
-      candidate.videoIds.add(upload.id);
-
-      if (candidate.examples.length<3)
-        candidate.examples.push(upload.title);
-
-      if (!candidate.displayName) {
-        const phraseWords = phrase.split(" ");
-        const originalWords = words.map(word=>word.toLocaleLowerCase());
-        const position = originalWords.findIndex((word,index)=>
-          phraseWords.every((part,offset)=>
-            originalWords[index+offset]===part
-          )
-        );
-
-        if (position>=0) {
-          candidate.displayName = words
-            .slice(position,position+phraseWords.length)
-            .join(" ");
-        }
-      }
-    }
-  }
-
-  let found = [...candidates.values()].filter(candidate=>
-    candidate.videoIds.size>=2 &&
-    selectedNormalised.includes(candidate.phrase)
-  );
-
-  found = found.filter(candidate=>{
-    return !found.some(other=>{
-      if (other.phrase===candidate.phrase) return false;
-      if (other.phrase.length<=candidate.phrase.length) return false;
-
-      const sameVideos =
-        [...candidate.videoIds].every(id=>other.videoIds.has(id));
-
-      return sameVideos && other.phrase.includes(candidate.phrase);
-    });
-  });
-
-  found.sort((a,b)=>
-    b.videoIds.size-a.videoIds.size ||
-    b.phrase.split(" ").length-a.phrase.split(" ").length ||
-    b.phrase.length-a.phrase.length
-  );
-
-  if (!found.length) return null;
-
-  const best = found[0];
-
-  return {
-    name:best.displayName || displaySeriesName(best.phrase),
-    count:best.videoIds.size,
-    examples:best.examples
-  };
-}
-
-/*
-  TEST WHETHER A VIDEO BELONGS TO A SERIES.
-
-  This deliberately checks both title and description, matching
-  the same approach used by the channel scanner.
-*/
-
-function videoMatchesSeries(video,seriesName) {
+function videoTitleMatchesSeries(video,seriesName) {
   const phrase = normaliseSearch(seriesName);
 
   if (!phrase || phrase.length<3) return false;
 
-  const title = normaliseSearch(video.title);
-  const description = normaliseSearch(video.description);
+  const title = " "+normaliseSearch(video.title)+" ";
 
-  return title.includes(phrase) || description.includes(phrase);
+  return title.includes(" "+phrase+" ");
 }
 
 /* ADD A WHOLE SERIES FROM A YOUTUBE SEARCH RESULT */
@@ -2073,9 +1971,14 @@ async function addYoutubeSeries(video,button) {
     const detailed = await addVideoDetails(uploads,key);
 
     /*
-      Check the saved series names for this creator first.
-      These are names the user has already confirmed, so they
-      take priority over guessing from a video title.
+      Check saved series names first.
+
+      A previously saved name is trusted only when:
+      1. The selected search result's TITLE contains the complete name.
+      2. At least two creator uploads have that complete name
+         in their TITLES.
+
+      Descriptions are deliberately excluded from this route.
     */
 
     const savedChannel = await getSavedChannel(video.channelId);
@@ -2089,55 +1992,41 @@ async function addYoutubeSeries(video,button) {
     const knownSeries = savedNames
       .map(name=>({
         name,
-        matches:detailed.filter(item=>videoMatchesSeries(item,name))
+        matches:detailed.filter(item=>
+          videoTitleMatchesSeries(item,name)
+        )
       }))
       .filter(candidate=>
-        videoMatchesSeries(video,candidate.name) &&
+        videoTitleMatchesSeries(video,candidate.name) &&
         candidate.matches.length>=2
       )
-      .sort((a,b)=>{
-        const aTitle = normaliseSearch(video.title)
-          .includes(normaliseSearch(a.name)) ? 1 : 0;
-        const bTitle = normaliseSearch(video.title)
-          .includes(normaliseSearch(b.name)) ? 1 : 0;
-
-        return bTitle-aTitle ||
-          normaliseSearch(b.name).length-normaliseSearch(a.name).length ||
-          b.matches.length-a.matches.length;
-      });
+      .sort((a,b)=>
+        normaliseSearch(b.name).length-
+        normaliseSearch(a.name).length ||
+        b.matches.length-a.matches.length
+      );
 
     /*
-      If no saved series name matches, look for a repeated title
-      pattern across the creator's uploads.
+      Only previously saved series names are recognised
+      automatically. New names are confirmed by the user.
+      We deliberately do not guess from repeated single words.
     */
-
-    const detected = detectSeriesFromUploads(video,detailed);
-
-    const recognisedName =
-      knownSeries[0]?.name || detected?.name || "";
 
     let seriesName;
 
-    if (recognisedName) {
-      /*
-        Confident match: use the name automatically.
-        No unnecessary prompt.
-      */
-      seriesName = recognisedName;
+    if (knownSeries.length) {
+      seriesName = knownSeries[0].name;
 
       setStatus(
-        'Recognised series "'+seriesName+
-        '". Checking the creator uploads for matching episodes...'
+        'Recognised saved series "'+seriesName+
+        '". Checking creator uploads for matching titles...'
       );
 
     } else {
-      /*
-        No reliable match: ask the user to name the series.
-      */
       const suggestedName = inferSeriesName(video.title);
 
       seriesName = window.prompt(
-        "AI Cinema could not confidently identify this series.\n\nPlease check or enter the series name:",
+        "AI Cinema could not match this video to a previously saved series.\n\nPlease check or enter the series name:",
         suggestedName
       );
 
@@ -2166,24 +2055,23 @@ async function addYoutubeSeries(video,button) {
       return;
     }
 
-    setStatus(
-      'Looking for uploads matching "'+cleanName+
-      '" in titles and descriptions...'
-    );
-
     /*
-      Match titles AND descriptions, just like identifySeries()
-      does during a normal channel scan.
+      Strict title-only matching:
+      descriptions are not searched, and the complete phrase
+      must appear as a separate phrase in the video title.
     */
 
+    setStatus(
+      'Looking for video titles matching "'+cleanName+'"...'
+    );
+
     let matches = detailed.filter(item=>
-      videoMatchesSeries(item,cleanName)
+      videoTitleMatchesSeries(item,cleanName)
     );
 
     /*
-      Always include the selected search result. This also protects
-      against small differences between the search result and the
-      creator's uploads playlist metadata.
+      Always include the selected search result. This protects
+      against small differences between search and playlist metadata.
     */
 
     if (!matches.some(item=>item.id===video.id)) {
@@ -2219,10 +2107,8 @@ async function addYoutubeSeries(video,button) {
       ' matching video(s) on '+(channel.snippet?.title || video.channelTitle)+'.\n\n'+
       'Series: '+cleanName+'\n'+
       (knownSeries.length
-        ? 'Matched against a previously saved series name.\n'
-        : detected
-          ? 'Title pattern detected from '+detected.count+' creator uploads.\n'
-          : 'Series name supplied manually.\n'
+        ? 'Matched against a previously saved series name using video titles.\n'
+        : 'Series name confirmed manually. Matching was based on video titles only.\n'
       )+
       'Already in this series: '+alreadyInSeries+'\n'+
       'New or updated matches: '+(matches.length-alreadyInSeries)+'\n\n'+
